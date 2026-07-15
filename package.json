@@ -1,0 +1,35 @@
+{
+  "name": "venera-runtime",
+  "version": "1.0.0",
+  "description": "A venera runtime that works in both Node and JSBox environments.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gandum2077/venera-runtime.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Gandum2077/venera-runtime/issues"
+  },
+  "homepage": "https://github.com/Gandum2077/venera-runtime#readme",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "crypto-js": "^4.2.0",
+    "jsbox-cview": "^1.6.9",
+    "url-parse": "^1.5.10"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/url-parse": "^1.4.11",
+    "jsbox-types": "^2.0.3",
+    "prettier": "^3.8.1",
+    "webpack": "^5.105.4",
+    "webpack-cli": "^7.0.2"
+  }
+}
