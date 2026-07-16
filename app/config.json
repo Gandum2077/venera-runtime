@@ -1,0 +1,25 @@
+{
+  "info": {
+    "name": "venera-runtime",
+    "url": "https://github.com/Gandum2077/venera-runtime",
+    "version": "1.0.0",
+    "author": "Gandum2077",
+    "website": "",
+    "types": 0
+  },
+  "settings": {
+    "theme": "auto",
+    "minSDKVer": "2.22.0",
+    "minOSVer": "17.0.0",
+    "idleTimerDisabled": false,
+    "autoKeyboardEnabled": false,
+    "keyboardToolbarEnabled": false,
+    "rotateDisabled": false
+  },
+  "widget": {
+    "height": 0,
+    "staticSize": false,
+    "tintColor": "",
+    "iconColor": ""
+  }
+}

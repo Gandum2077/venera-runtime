@@ -4,7 +4,9 @@
   "description": "A venera runtime that works in both Node and JSBox environments.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc && npx webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
+    "build:debug": "tsc && npx webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
+    "format": "prettier --write ."
   },
   "repository": {
     "type": "git",
