@@ -1,5 +1,8 @@
 import type { RuntimeGlobals, VeneraConfigSource } from "./venera-types";
 
+/** Venera 1.6.3 在配置解析完成后延迟启动 `source.init()`。 */
+const VENERA_INIT_DELAY_MS = 50;
+
 export function loadVeneraConfigBySourceCode(
   sourceCode: string,
   globals: RuntimeGlobals,
@@ -13,7 +16,7 @@ export function loadVeneraConfigBySourceCode(
           console.error("Venera config init failed", error);
         },
       );
-    }, 0);
+    }, VENERA_INIT_DELAY_MS);
   }
   return source;
 }
@@ -21,7 +24,8 @@ export function loadVeneraConfigBySourceCode(
 /**
  * 加载配置并等待 `source.init()` 完成。
  *
- * npm 包消费者通常应使用这个版本，避免初始化数据尚未写入就调用源能力。
+ * 这是需要在返回前确认初始化完成时使用的额外入口；它不模拟 Venera
+ * 默认的后台初始化时序。
  */
 export async function loadVeneraConfigBySourceCodeAsync(
   sourceCode: string,

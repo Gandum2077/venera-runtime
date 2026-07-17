@@ -106,7 +106,7 @@ const runtime = await import("venera-runtime");
 
 ## 最小可运行示例
 
-推荐使用异步的 `loadVeneraConfig()`。它会创建运行时、执行配置源码，并等待配置源的 `init()` 完成。
+推荐使用 `loadVeneraConfig()`。它会创建运行时并执行配置源码，然后像 Venera 1.6.3 一样，在加载后异步启动配置源的 `init()`。加载函数本身同步返回，不会等待 `init()` 完成。
 
 ### CommonJS
 
@@ -142,9 +142,12 @@ class DemoSource extends ComicSource {
 `;
 
 async function main() {
-  const source = await loadVeneraConfig(sourceCode);
+  const source = loadVeneraConfig(sourceCode);
 
   console.log(source.name); // Local demo
+
+  // init() 在后台执行；这里等待只是为了演示读取它写入的数据。
+  await new Promise((resolve) => setTimeout(resolve, 100));
   console.log(source.loadData("initialized")); // true
 
   const result = await source.search.load("Venera", [], 1);
@@ -178,7 +181,7 @@ const sourceCode = await readFile(
   "utf8",
 );
 
-const source: VeneraConfigSource = await loadVeneraConfig(sourceCode);
+const source: VeneraConfigSource = loadVeneraConfig(sourceCode);
 
 console.log({
   name: source.name,
@@ -200,7 +203,7 @@ VENERA_RUNTIME_DATA_DIR="$PWD/runtime-data" npx tsx demo.ts
 ```js
 import runtime from "venera-runtime";
 
-const source = await runtime.loadVeneraConfig(sourceCode);
+const source = runtime.loadVeneraConfig(sourceCode);
 ```
 
 ## 加载真实配置文件并调用功能
@@ -213,7 +216,7 @@ const { loadVeneraConfig } = require("venera-runtime");
 
 async function main() {
   const code = await readFile(process.argv[2], "utf8");
-  const source = await loadVeneraConfig(code);
+  const source = loadVeneraConfig(code);
 
   console.log(`Loaded ${source.name} (${source.key}) v${source.version}`);
 
@@ -263,8 +266,8 @@ const { createVeneraRuntime, loadVeneraConfig } = require("venera-runtime");
 
 const globals = createVeneraRuntime();
 
-const sourceA = await loadVeneraConfig(codeA, { globals });
-const sourceB = await loadVeneraConfig(codeB, { globals });
+const sourceA = loadVeneraConfig(codeA, { globals });
+const sourceB = loadVeneraConfig(codeB, { globals });
 
 console.log(globals.ComicSource.sources[sourceA.key] === sourceA); // true
 console.log(globals.ComicSource.sources[sourceB.key] === sourceB); // true
@@ -273,7 +276,7 @@ console.log(globals.ComicSource.sources[sourceB.key] === sourceB); // true
 如果只想解析配置结构，不想执行可能包含网络或数据初始化的 `init()`：
 
 ```js
-const source = await loadVeneraConfig(sourceCode, { runInit: false });
+const source = loadVeneraConfig(sourceCode, { runInit: false });
 ```
 
 ## 底层加载接口
@@ -289,19 +292,15 @@ const {
 
 const globals = createVeneraRuntime();
 
-// 等待 init 完成；推荐用于普通业务代码。
+// 只有调用后必须立即依赖 init 结果时，才显式等待它完成。
 const readySource = await loadVeneraConfigBySourceCodeAsync(
   sourceCode,
   globals,
   true,
 );
 
-// 同步返回，并在后台调度 init；用于兼容原有调用方式。
-const legacySource = loadVeneraConfigBySourceCode(
-  anotherSourceCode,
-  globals,
-  true,
-);
+// 与 Venera 1.6.3 一致：同步返回，并在后台调度 init。
+const source = loadVeneraConfigBySourceCode(anotherSourceCode, globals, true);
 ```
 
 ## 在 JSBox 项目中作为依赖使用
@@ -321,7 +320,7 @@ import { loadVeneraConfig } from "venera-runtime";
 const sourceCode = $file.read("assets/config.js")?.string;
 if (!sourceCode) throw new Error("Failed to read config source");
 
-const source = await loadVeneraConfig(sourceCode);
+const source = loadVeneraConfig(sourceCode);
 
 $ui.alert(`${source.name} v${source.version}`);
 ```
@@ -330,16 +329,16 @@ $ui.alert(`${source.name} v${source.version}`);
 
 ## 常用导出
 
-| 导出                                | 用途                                |
-| ----------------------------------- | ----------------------------------- |
-| `loadVeneraConfig`                  | 推荐的高层加载入口，会等待 `init()` |
-| `createVeneraRuntime`               | 手动创建注入给配置脚本的全局对象    |
-| `loadVeneraConfigBySourceCodeAsync` | 使用指定 globals 加载并等待初始化   |
-| `loadVeneraConfigBySourceCode`      | 兼容旧调用方式，初始化在后台执行    |
-| `APP`                               | 固定的 Venera 1.6.3 / iOS 元数据    |
-| `Network`、`Convert`、`UI`          | Venera 对应能力的直接实现           |
-| `configManager`                     | locale、源数据和设置的持久化管理器  |
-| `modifyImage`                       | 执行配置中的图片处理脚本            |
+| 导出                                | 用途                                  |
+| ----------------------------------- | ------------------------------------- |
+| `loadVeneraConfig`                  | 推荐的高层加载入口，后台执行 `init()` |
+| `createVeneraRuntime`               | 手动创建注入给配置脚本的全局对象      |
+| `loadVeneraConfigBySourceCode`      | 使用指定 globals 加载，后台执行初始化 |
+| `loadVeneraConfigBySourceCodeAsync` | 特殊场景下加载并等待初始化完成        |
+| `APP`                               | 固定的 Venera 1.6.3 / iOS 元数据      |
+| `Network`、`Convert`、`UI`          | Venera 对应能力的直接实现             |
+| `configManager`                     | locale、源数据和设置的持久化管理器    |
+| `modifyImage`                       | 执行配置中的图片处理脚本              |
 
 Node 端 UI 不创建图形窗口：消息、对话框、加载状态和链接会输出到 CLI，输入框和选择框从标准输入读取。
 

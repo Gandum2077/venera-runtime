@@ -1,20 +1,6 @@
 # venera-runtime
 
-本项目的目标是让[venera](https://github.com/venera-app/venera)的核心能够在 Node.js 和 JSBox 上运行。
-
-## 现状与目标
-
-（可以修改本部分，以反应实时进度）
-
-### 现状
-
-已完成平台 API 边界与 Node.js 实现。Node 类型检查、17 项模块/API 测试和 31 个真实配置的无网络加载测试已经通过。JSBox 真机复测 8/8 通过，报告与 Node 完全匹配。外部 HTTP 测试原先使用 httpbin，真机耗时约 38 秒，现已改用轻量 204 连通性端点。项目可通过本地目录或 tarball 作为 npm 包安装，并已验证 CommonJS、ESM 和 TypeScript 消费方式。
-
-兼容目标固定为 Venera 1.6.3，配置脚本看到的平台固定为 iOS。本项目不管理配置文件。
-
-## 目标
-
-让 venera 核心在 Node.js 和 JSBox 上均可运行，并实现完整的测试。
+本项目的目标是让[venera](https://github.com/venera-app/venera)的核心能够在 Node.js 和 JSBox 上运行，并实现完整的测试。
 
 1. [x] 基于目前 JSBox 端的代码，将 JSBox 的专用 API 抽离到 `src/api.ts`。
 2. [x] 为 `src/api.ts` 添加 Node.js 实现，并使用中立数据类型保证双方接口一致。

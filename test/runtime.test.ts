@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { HtmlDocumentWrapper } from "../src/html-wrapper";
 import { createVeneraRuntime } from "../src/runtime";
 import { loadVeneraConfigBySourceCode } from "../src/load-config";
@@ -27,9 +27,11 @@ describe("HTML compatibility wrappers", () => {
 });
 
 describe("Venera config runtime", () => {
-  it("high-level loader waits for async init", async () => {
-    const source = await loadVeneraConfig(
-      `
+  it("high-level loader schedules init without waiting for it", async () => {
+    vi.useFakeTimers();
+    try {
+      const source = loadVeneraConfig(
+        `
 class AsyncSource extends ComicSource {
   name = "Async";
   key = "async_runtime_test_source";
@@ -40,8 +42,18 @@ class AsyncSource extends ComicSource {
   }
 }
 `,
-    );
-    expect(source.loadData("ready")).toBe(true);
+      );
+      expect(source).not.toBeInstanceOf(Promise);
+      expect(source.loadData("ready")).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(49);
+      expect(source.loadData("ready")).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(6);
+      expect(source.loadData("ready")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("loads a source, stores data/settings and exposes fixed app metadata", async () => {
@@ -59,7 +71,7 @@ class TestSource extends ComicSource {
 `,
       globals,
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 60));
     expect(source.key).toBe("runtime_test_source");
     expect(source.loadSetting("mode")).toBe("default");
     expect(source.loadData("initialized")).toBe(true);
