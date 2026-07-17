@@ -1,5 +1,5 @@
 import { CookieRecord } from "./venera-types";
-import { dbManager } from "./database";
+import { DBManager, dbManager } from "./database";
 import UrlParse from "url-parse";
 
 /**
@@ -51,7 +51,10 @@ function splitCookiesString(setCookieStr: string): string[] {
     }
 
     cookieStart = i + 1;
-    while (cookieStart < setCookieStr.length && isWhitespace(setCookieStr[cookieStart])) {
+    while (
+      cookieStart < setCookieStr.length &&
+      isWhitespace(setCookieStr[cookieStart])
+    ) {
       cookieStart += 1;
     }
   }
@@ -126,7 +129,7 @@ function normalizeCookie(cookie: CookieRecord, url: string): CookieRecord {
   return {
     name: cookie.name,
     value: cookie.value,
-    domain: (cookie.domain || target.hostname).toLowerCase(),
+    domain: (cookie.domain || target.hostname).toLowerCase().replace(/^\./, ""),
     path: cookie.path || "/",
     expires: cookie.expires || null,
     secure: Boolean(cookie.secure),
@@ -140,10 +143,22 @@ function cookieMatches(cookie: CookieRecord, url: string): boolean {
   const hostname = target.hostname.toLowerCase();
   const pathname = target.pathname || "/";
 
-  if (hostname !== cookie.domain && !hostname.endsWith(`.${cookie.domain ?? ""}`)) {
+  if (
+    hostname !== cookie.domain &&
+    !hostname.endsWith(`.${cookie.domain ?? ""}`)
+  ) {
     return false;
   }
-  if (!pathname.startsWith(cookie.path || "/")) {
+  const cookiePath = cookie.path || "/";
+  if (!pathname.startsWith(cookiePath)) {
+    return false;
+  }
+  if (
+    cookiePath !== "/" &&
+    !cookiePath.endsWith("/") &&
+    pathname.length > cookiePath.length &&
+    pathname[cookiePath.length] !== "/"
+  ) {
     return false;
   }
   if (cookie.secure && target.protocol !== "https:") {
@@ -186,14 +201,16 @@ function isSameCookieValue(left: CookieRecord, right: CookieRecord): boolean {
   );
 }
 
-class BrowserCookieJar {
+export class BrowserCookieJar {
   private _cookies: CookieRecord[];
+  private readonly database: DBManager;
 
-  constructor() {
+  constructor(database: DBManager = dbManager) {
+    this.database = database;
     this._cookies = this.loadCookies();
   }
   private loadCookies(): CookieRecord[] {
-    const rows = dbManager.query(
+    const rows = this.database.query(
       `SELECT name, value, domain, path, expires, secure, httpOnly FROM cookiejar`,
     ) as Array<{
       name: string;
@@ -215,12 +232,18 @@ class BrowserCookieJar {
     }));
   }
 
-  private persist(upserts: CookieRecord[] = [], deletions: CookieRecord[] = []): void {
+  private persist(
+    upserts: CookieRecord[] = [],
+    deletions: CookieRecord[] = [],
+  ): void {
     if (upserts.length === 0 && deletions.length === 0) {
       return;
     }
 
-    const statements: { sql: string; args?: (string | number | boolean | null)[] }[] = [];
+    const statements: {
+      sql: string;
+      args?: (string | number | boolean | null)[];
+    }[] = [];
     for (const cookie of deletions) {
       statements.push({
         sql: `DELETE FROM cookiejar WHERE name = ? AND domain = ? AND path = ?`,
@@ -241,7 +264,7 @@ class BrowserCookieJar {
         ],
       });
     }
-    dbManager.transactionUpdate(statements);
+    this.database.transactionUpdate(statements);
   }
 
   private pruneExpired(): void {
@@ -275,7 +298,9 @@ class BrowserCookieJar {
     for (const cookie of cookies) {
       const normalized = normalizeCookie(cookie, url);
       const key = getCookieKey(normalized);
-      const currentIndex = this._cookies.findIndex((current) => isSameCookieKey(current, normalized));
+      const currentIndex = this._cookies.findIndex((current) =>
+        isSameCookieKey(current, normalized),
+      );
       const current = currentIndex >= 0 ? this._cookies[currentIndex] : null;
 
       if (isCookieExpired(normalized)) {
@@ -306,7 +331,9 @@ class BrowserCookieJar {
     const target = new UrlParse(url);
     const deleted: CookieRecord[] = [];
     this._cookies = this._cookies.filter((cookie) => {
-      const shouldDelete = target.hostname === cookie.domain || target.hostname.endsWith(`.${cookie.domain ?? ""}`);
+      const shouldDelete =
+        target.hostname === cookie.domain ||
+        target.hostname.endsWith(`.${cookie.domain ?? ""}`);
       if (shouldDelete) {
         deleted.push(cookie);
       }

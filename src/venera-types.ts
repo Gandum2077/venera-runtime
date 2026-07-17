@@ -27,7 +27,10 @@ export type ComicChapterMap = Map<string, string> | Record<string, string>;
  * - 既可能是简单的一层 map
  * - 也可能是“分组标题 -> 章节 map”的二层结构
  */
-export type ComicChapters = ComicChapterMap | Map<string, ComicChapterMap> | Record<string, Record<string, string>>;
+export type ComicChapters =
+  | ComicChapterMap
+  | Map<string, ComicChapterMap>
+  | Record<string, Record<string, string>>;
 
 /** 页面跳转目标的标准结构。 */
 export interface PageJumpTarget {
@@ -187,7 +190,12 @@ export interface ExplorePagePart {
 }
 
 /** `explore` 页支持的几种返回模式。 */
-export type ExplorePageType = "singlePageWithMultiPart" | "multiPartPage" | "multiPageComicList" | "mixed" | "override";
+export type ExplorePageType =
+  | "singlePageWithMultiPart"
+  | "multiPartPage"
+  | "multiPageComicList"
+  | "mixed"
+  | "override";
 
 /** 普通分页漫画列表。 */
 export interface ExploreComicListResult {
@@ -202,17 +210,21 @@ export interface ExploreMixedResult {
   maxPage?: number;
 }
 
-export type ExploreMultiPartResult = ExplorePagePart[] | Record<string, ComicShape[]>;
+export type ExploreMultiPartResult =
+  ExplorePagePart[] | Record<string, ComicShape[]>;
 
 /** 发现页加载函数可能返回的所有结果类型。 */
-export type ExploreLoadResult = ExploreMultiPartResult | ExploreComicListResult | ExploreMixedResult;
+export type ExploreLoadResult =
+  ExploreMultiPartResult | ExploreComicListResult | ExploreMixedResult;
 
 /** 单个 discover/explore 页面定义。 */
 export interface ExplorePageData {
   title: string;
   type: ExplorePageType;
   load?: (page: number | null) => Promise<ExploreLoadResult>;
-  loadNext?: (next: string | null) => Promise<{ comics: ComicShape[]; next?: string | null }>;
+  loadNext?: (
+    next: string | null,
+  ) => Promise<{ comics: ComicShape[]; next?: string | null }>;
 }
 
 /** 搜索页选项支持的三种表现形式。 */
@@ -234,7 +246,11 @@ export interface SearchPageResult {
 
 /** 搜索页能力定义。 */
 export interface SearchPageData {
-  load?: (keyword: string, options: string[], page: number) => Promise<SearchPageResult>;
+  load?: (
+    keyword: string,
+    options: string[],
+    page: number,
+  ) => Promise<SearchPageResult>;
   loadNext?: (
     keyword: string,
     options: string[],
@@ -292,14 +308,25 @@ export interface CategoryComicsOptions {
 export interface RankingData {
   options: string[];
   load?: (option: string, page: number) => Promise<SearchPageResult>;
-  loadNext?: (option: string, next: string | null) => Promise<{ comics: ComicShape[]; next?: string | null }>;
+  loadNext?: (
+    option: string,
+    next: string | null,
+  ) => Promise<{ comics: ComicShape[]; next?: string | null }>;
 }
 
 /** “分类 -> 漫画列表”的加载能力。 */
 export interface CategoryComicsData {
-  load(category: string, param: string | null | undefined, options: string[], page: number): Promise<SearchPageResult>;
+  load(
+    category: string,
+    param: string | null | undefined,
+    options: string[],
+    page: number,
+  ): Promise<SearchPageResult>;
   optionList?: CategoryComicsOptions[];
-  optionLoader?: (category: string, param: string | null | undefined) => Promise<CategoryComicsOptions[]>;
+  optionLoader?: (
+    category: string,
+    param: string | null | undefined,
+  ) => Promise<CategoryComicsOptions[]>;
   ranking?: RankingData;
 }
 
@@ -341,8 +368,14 @@ export interface CommentPageResult {
 /** 网络收藏能力定义。 */
 export interface FavoritesSection {
   multiFolder: boolean;
-  loadComics?: (page: number, folder?: string | null) => Promise<SearchPageResult>;
-  loadNext?: (next: string | null, folder?: string | null) => Promise<{ comics: ComicShape[]; next?: string | null }>;
+  loadComics?: (
+    page: number,
+    folder?: string | null,
+  ) => Promise<SearchPageResult>;
+  loadNext?: (
+    next: string | null,
+    folder?: string | null,
+  ) => Promise<{ comics: ComicShape[]; next?: string | null }>;
   loadFolders?: (comicId?: string | null) => Promise<FavoriteFoldersResult>;
   addFolder?: (name: string) => MaybePromise<unknown>;
   deleteFolder?: (folderId: string) => MaybePromise<unknown>;
@@ -460,8 +493,15 @@ export interface ComicSection {
     commentId: string,
     isLiking: boolean,
   ) => MaybePromise<number | null | undefined>;
-  loadThumbnails?: (comicId: string, next?: string | null) => Promise<ComicThumbnailListResult>;
-  onImageLoad?: (url: string, comicId: string, epId?: string | null) => MaybePromise<ImageLoadingConfigShape>;
+  loadThumbnails?: (
+    comicId: string,
+    next?: string | null,
+  ) => Promise<ComicThumbnailListResult>;
+  onImageLoad?: (
+    url: string,
+    comicId: string,
+    epId?: string | null,
+  ) => MaybePromise<ImageLoadingConfigShape>;
   onThumbnailLoad?: (url: string) => MaybePromise<ImageLoadingConfigShape>;
   onClickTag?: (namespace: string, tag: string) => PageJumpTargetLike;
   link?: LinkHandler;
@@ -519,12 +559,26 @@ export interface ConvertApi {
   sha1(value: ArrayBuffer | ArrayBufferView): ArrayBuffer;
   sha512(value: ArrayBuffer | ArrayBufferView): ArrayBuffer;
   md5(value: ArrayBuffer | ArrayBufferView): ArrayBuffer;
-  hmac(key: ArrayBuffer | ArrayBufferView, value: ArrayBuffer | ArrayBufferView, hash: string): ArrayBuffer;
-  hmacString(key: ArrayBuffer | ArrayBufferView, value: ArrayBuffer | ArrayBufferView, hash: string): string;
+  hmac(
+    key: ArrayBuffer | ArrayBufferView,
+    value: ArrayBuffer | ArrayBufferView,
+    hash: string,
+  ): ArrayBuffer;
+  hmacString(
+    key: ArrayBuffer | ArrayBufferView,
+    value: ArrayBuffer | ArrayBufferView,
+    hash: string,
+  ): string;
   encodeGbk(value: string): ArrayBuffer;
   decodeGbk(value: ArrayBuffer | ArrayBufferView): string;
-  encryptAesEcb(value: ArrayBuffer | ArrayBufferView, key: ArrayBuffer | ArrayBufferView): ArrayBuffer;
-  decryptAesEcb(value: ArrayBuffer | ArrayBufferView, key: ArrayBuffer | ArrayBufferView): ArrayBuffer;
+  encryptAesEcb(
+    value: ArrayBuffer | ArrayBufferView,
+    key: ArrayBuffer | ArrayBufferView,
+  ): ArrayBuffer;
+  decryptAesEcb(
+    value: ArrayBuffer | ArrayBufferView,
+    key: ArrayBuffer | ArrayBufferView,
+  ): ArrayBuffer;
   encryptAesCbc(
     value: ArrayBuffer | ArrayBufferView,
     key: ArrayBuffer | ArrayBufferView,
@@ -576,7 +630,11 @@ export interface NetworkApi {
     data?: unknown,
     extra?: Record<string, unknown>,
   ): Promise<NetworkResponse<string>>;
-  get(url: string, headers?: Record<string, string>, extra?: Record<string, unknown>): Promise<NetworkResponse<string>>;
+  get(
+    url: string,
+    headers?: Record<string, string>,
+    extra?: Record<string, unknown>,
+  ): Promise<NetworkResponse<string>>;
   post(
     url: string,
     headers?: Record<string, string>,
@@ -610,7 +668,11 @@ export interface UIApi {
   showDialog(
     title: string,
     content: string,
-    actions: { text: string; callback: () => void | Promise<void>; style?: "text" | "filled" | "danger" }[],
+    actions: {
+      text: string;
+      callback: () => void | Promise<void>;
+      style?: "text" | "filled" | "danger";
+    }[],
   ): void;
   launchUrl(url: string): void;
   showLoading(onCancel?: (() => void) | null): number;
@@ -620,7 +682,11 @@ export interface UIApi {
     validator?: (value: string) => string | null,
     image?: string | ArrayBuffer | null,
   ): Promise<string | null>;
-  showSelectDialog(title: string, options: string[], initialIndex?: number | null): Promise<number | null>;
+  showSelectDialog(
+    title: string,
+    options: string[],
+    initialIndex?: number | null,
+  ): Promise<number | null>;
 }
 
 /** 注入给配置文件的 console。 */
@@ -646,11 +712,17 @@ export interface RuntimeGlobals {
   HtmlDocument: new (html: string) => unknown;
   HtmlElement: new (...args: unknown[]) => unknown;
   HtmlNode: new (...args: unknown[]) => unknown;
-  ImageLoadingConfig: new (data?: ImageLoadingConfigShape) => ImageLoadingConfigShape;
+  ImageLoadingConfig: new (
+    data?: ImageLoadingConfigShape,
+  ) => ImageLoadingConfigShape;
   Network: NetworkApi;
   UI: UIApi;
   compute<T = unknown>(func: string, ...args: unknown[]): Promise<T>;
-  log: (level: "info" | "warning" | "error", source: string, content: unknown) => void;
+  log: (
+    level: "info" | "warning" | "error",
+    source: string,
+    content: unknown,
+  ) => void;
   console: RuntimeConsoleApi;
   createUuid(): string;
   fetch(url: string, options?: RequestInit): Promise<FetchCompatResponse>;

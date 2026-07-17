@@ -2,36 +2,81 @@
   "name": "venera-runtime",
   "version": "1.0.0",
   "description": "A venera runtime that works in both Node and JSBox environments.",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/api-test-suite.*",
+    "!dist/compare-test-reports.*",
+    "!dist/jsbox-test-runner.*",
+    "!dist/node-test-runner.*",
+    "!dist/show-input-dialog.*",
+    "!dist/show-loading.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": "^20.9.0 || >=22.0.0"
+  },
   "scripts": {
-    "build": "tsc && npx webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
-    "build:debug": "tsc && npx webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:node-report": "tsc && node dist/node-test-runner.js",
+    "test:compare": "tsc && node dist/compare-test-reports.js",
+    "build:node": "tsc",
+    "build": "tsc && webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
+    "build:debug": "tsc && webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
+    "build:jsbox-test": "npm run build --entry=./dist/jsbox-test-runner.js",
+    "build:jsbox-test:debug": "npm run build:debug --entry=./dist/jsbox-test-runner.js",
+    "prepare": "npm run build:node",
     "format": "prettier --write ."
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Gandum2077/venera-runtime.git"
   },
-  "keywords": [],
+  "keywords": [
+    "venera",
+    "jsbox",
+    "comic"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "GPL-3.0-only",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Gandum2077/venera-runtime/issues"
   },
   "homepage": "https://github.com/Gandum2077/venera-runtime#readme",
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "cheerio": "^1.2.0",
+    "clipboardy": "^5.3.1",
     "crypto-js": "^4.2.0",
+    "iconv-lite": "^0.7.3",
     "jsbox-cview": "^1.6.9",
+    "sharp": "^0.35.3",
     "url-parse": "^1.5.10"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/crypto-js": "^4.2.2",
+    "@types/node": "^26.1.1",
     "@types/url-parse": "^1.4.11",
+    "@vitest/coverage-v8": "^4.1.10",
     "jsbox-types": "^2.0.3",
     "prettier": "^3.8.1",
-    "webpack": "^5.105.4",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "webpack": "^5.108.4",
     "webpack-cli": "^7.0.2"
   }
 }

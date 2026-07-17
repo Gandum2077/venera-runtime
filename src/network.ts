@@ -1,132 +1,118 @@
-import { CookieRecord, NetworkApi, NetworkResponse } from "./venera-types";
+import { httpRequest, RuntimeHttpRequest } from "./api";
 import { cookieJar } from "./cookiejar";
-import { toUint8Array } from "./tools";
+import { decodeUtf8 } from "./convert";
+import type {
+  CookieRecord,
+  FetchCompatResponse,
+  NetworkApi,
+  NetworkResponse,
+} from "./venera-types";
 
-function normalizeHeaders(headers: Record<string, string> = {}): Record<string, string> {
-  // 过滤掉 null / undefined，并保证所有 header 值都是字符串。
+function normalizeHeaders(
+  headers: Record<string, string> = {},
+): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (value !== null && value !== undefined) {
-      result[key] = String(value);
-    }
+    if (value !== null && value !== undefined) result[key] = String(value);
   }
   return result;
 }
 
+function hasHeader(
+  headers: Record<string, string>,
+  expectedName: string,
+): boolean {
+  const expected = expectedName.toLowerCase();
+  return Object.keys(headers).some((name) => name.toLowerCase() === expected);
+}
+
+function normalizeBody(data: unknown): RuntimeHttpRequest["body"] {
+  if (data === null || data === undefined) return null;
+  if (
+    typeof data === "string" ||
+    data instanceof ArrayBuffer ||
+    ArrayBuffer.isView(data)
+  )
+    return data;
+  if (typeof data === "object" && !Array.isArray(data))
+    return data as Record<string, unknown>;
+  return String(data);
+}
+
+function applyResponseCookies(url: string, headers: string[]): void {
+  for (const header of headers) cookieJar.applySetCookieHeader(url, header);
+}
+
+async function request(
+  method: string,
+  url: string,
+  headers?: Record<string, string>,
+  data?: unknown,
+  extra?: Record<string, unknown>,
+): Promise<{
+  status: number;
+  headers: Record<string, string>;
+  body: ArrayBuffer;
+}> {
+  const mergedHeaders = normalizeHeaders(headers);
+  const cookieHeader = cookieJar.getCookieHeader(url);
+  if (cookieHeader && !hasHeader(mergedHeaders, "cookie"))
+    mergedHeaders.Cookie = cookieHeader;
+
+  const response = await httpRequest({
+    method,
+    url,
+    headers: mergedHeaders,
+    body: normalizeBody(data),
+    timeout: typeof extra?.timeout === "number" ? extra.timeout : undefined,
+  });
+  applyResponseCookies(response.url || url, response.setCookieHeaders);
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: response.body,
+  };
+}
+
 export const Network: NetworkApi = {
-  /**
-   * Sends an HTTP request.
-   * @param {string} method - The HTTP method (e.g., GET, POST, PUT, PATCH, DELETE).
-   * @param {string} url - The URL to send the request to.
-   * @param {Object} headers - The headers to include in the request.
-   * @param data - The data to send with the request.
-   * @param {Object} extra - Extra options to pass to the interceptor.
-   * @returns {Promise<{status: number, headers: {}, body: ArrayBuffer}>} The response from the request.
-   */
   async fetchBytes(
-    method: string,
-    url: string,
-    headers?: Record<string, string>,
-    data?: Record<string, unknown> | ArrayBuffer | Uint8Array | ArrayBufferView | null,
-    extra?: Record<string, unknown>,
+    method,
+    url,
+    headers,
+    data,
+    extra,
   ): Promise<NetworkResponse<ArrayBuffer>> {
-    let body: Record<string, unknown> | NSData | undefined = undefined;
-    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data) || data instanceof Uint8Array) {
-      body = $data({ byteArray: toUint8Array(data) });
-    } else if (data && typeof data === "object") {
-      body = data as Record<string, unknown>;
-    }
-    const mergedHeaders = normalizeHeaders(headers);
-    const cookieHeader = cookieJar.getCookieHeader(url);
-    if (cookieHeader && !mergedHeaders.cookie && !mergedHeaders.Cookie) {
-      mergedHeaders.Cookie = cookieHeader;
-    }
-    const response = await $http.request({
-      method,
-      url,
-      header: mergedHeaders,
-      body,
-      timeout: typeof extra?.timeout === "number" ? extra.timeout : undefined,
-    });
-    if (response.error) {
-      throw new Error(`Network request failed: ${response.error.localizedDescription}`);
-    }
-    if (response.response?.headers?.["Set-Cookie"]) {
-      const setCookieHeader = response.response.headers["Set-Cookie"];
-      cookieJar.applySetCookieHeader(response.response.url || url, setCookieHeader);
-    }
-    return {
-      status: response.response.statusCode,
-      headers: response.response.headers,
-      body: new Uint8Array(response.rawData.byteArray).buffer,
-    };
+    return request(method, url, headers, data, extra);
   },
 
-  /**
-   * Sends an HTTP request.
-   * @param {string} method - The HTTP method (e.g., GET, POST, PUT, PATCH, DELETE).
-   * @param {string} url - The URL to send the request to.
-   * @param {Object} headers - The headers to include in the request.
-   * @param data - The data to send with the request.
-   * @param {Object} extra - Extra options to pass to the interceptor.
-   * @returns {Promise<{status: number, headers: {}, body: string}>} The response from the request.
-   */
   async sendRequest(
-    method: string,
-    url: string,
-    headers?: Record<string, string>,
-    data?: Record<string, unknown> | ArrayBuffer | Uint8Array | ArrayBufferView | null,
-    extra?: Record<string, unknown>,
+    method,
+    url,
+    headers,
+    data,
+    extra,
   ): Promise<NetworkResponse<string>> {
-    let body: Record<string, unknown> | NSData | undefined = undefined;
-    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data) || data instanceof Uint8Array) {
-      body = $data({ byteArray: toUint8Array(data) });
-    } else if (data && typeof data === "object") {
-      body = data as Record<string, unknown>;
-    }
-    const mergedHeaders = normalizeHeaders(headers);
-    const cookieHeader = cookieJar.getCookieHeader(url);
-    if (cookieHeader && !mergedHeaders.cookie && !mergedHeaders.Cookie) {
-      mergedHeaders.Cookie = cookieHeader;
-    }
-    const response = await $http.request({
-      method,
-      url,
-      header: mergedHeaders,
-      body,
-    });
-    if (response.error) {
-      throw new Error(`Network request failed: ${response.error.localizedDescription}`);
-    }
-    if (response.response?.headers?.["Set-Cookie"]) {
-      const setCookieHeader = response.response.headers["Set-Cookie"];
-      cookieJar.applySetCookieHeader(response.response.url || url, setCookieHeader);
-    }
-
-    return {
-      status: response.response.statusCode,
-      headers: response.response.headers,
-      body: response.rawData.string || "",
-    };
+    const response = await request(method, url, headers, data, extra);
+    return { ...response, body: decodeUtf8(response.body) };
   },
 
-  async get(url, headers, extra): Promise<NetworkResponse<string>> {
+  get(url, headers, extra) {
     return this.sendRequest("GET", url, headers, null, extra);
   },
 
-  async post(url, headers, data, extra): Promise<NetworkResponse<string>> {
+  post(url, headers, data, extra) {
     return this.sendRequest("POST", url, headers, data ?? null, extra);
   },
 
-  async put(url, headers, data, extra): Promise<NetworkResponse<string>> {
+  put(url, headers, data, extra) {
     return this.sendRequest("PUT", url, headers, data ?? null, extra);
   },
 
-  async patch(url, headers, data, extra): Promise<NetworkResponse<string>> {
+  patch(url, headers, data, extra) {
     return this.sendRequest("PATCH", url, headers, data ?? null, extra);
   },
 
-  async delete(url, headers, extra): Promise<NetworkResponse<string>> {
+  delete(url, headers, extra) {
     return this.sendRequest("DELETE", url, headers, null, extra);
   },
 
@@ -143,63 +129,30 @@ export const Network: NetworkApi = {
   },
 };
 
-/**
- * [fetch] function for sending HTTP requests. Same api as the browser fetch.
- * @param {string} url
- * @param {{method?: string, headers?: Object, body?: any}} [options]
- * @returns {Promise<{ok: boolean, status: number, statusText: string, headers: {}, arrayBuffer: (function(): Promise<ArrayBuffer>), text: (function(): Promise<string>), json: (function(): Promise<any>)}>}
- * @since 1.2.0
- */
+/** 与 Venera 1.6.3 注入的 fetch 兼容。 */
 export async function veneraFetch(
   url: string,
-  options?: { method?: string; headers?: Record<string, string>; body?: any },
-): Promise<{
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers: {};
-  arrayBuffer: () => Promise<ArrayBuffer>;
-  text: () => Promise<string>;
-  json: () => Promise<any>;
-}> {
-  const method = options?.method ?? "GET";
-  const headers = options?.headers;
-  const data = options?.body;
-  let body: Record<string, unknown> | NSData | undefined = undefined;
-  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data) || data instanceof Uint8Array) {
-    body = $data({ byteArray: toUint8Array(data) });
-  } else if (data && typeof data === "object") {
-    body = data as Record<string, unknown>;
-  }
-  const mergedHeaders = normalizeHeaders(headers);
-  const cookieHeader = cookieJar.getCookieHeader(url);
-  if (cookieHeader && !mergedHeaders.cookie && !mergedHeaders.Cookie) {
-    mergedHeaders.Cookie = cookieHeader;
-  }
-  const response = await $http.request({
-    method,
-    url,
-    header: mergedHeaders,
-    body,
+  options?: RequestInit,
+): Promise<FetchCompatResponse> {
+  const headers = new Headers(options?.headers);
+  const normalizedHeaders: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    normalizedHeaders[key] = value;
   });
-  if (response.error) {
-    throw new Error(`Network request failed: ${response.error.localizedDescription}`);
-  }
-
-  if (response.response?.headers?.["Set-Cookie"]) {
-    const setCookieHeader = response.response.headers["Set-Cookie"];
-    cookieJar.applySetCookieHeader(response.response.url || url, setCookieHeader);
-  }
-
-  const jsonData = response.data;
+  const response = await request(
+    options?.method ?? "GET",
+    url,
+    normalizedHeaders,
+    options?.body ?? null,
+  );
 
   return {
-    ok: response.response.statusCode >= 200 && response.response.statusCode < 300,
-    status: response.response.statusCode,
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
     statusText: "",
-    headers: response.response.headers,
-    arrayBuffer: async () => new Uint8Array(response.rawData.byteArray).buffer,
-    text: async () => response.rawData.string || "",
-    json: async () => (typeof jsonData === "object" ? jsonData : undefined),
+    headers: response.headers,
+    arrayBuffer: async () => response.body.slice(0),
+    text: async () => decodeUtf8(response.body),
+    json: async () => JSON.parse(decodeUtf8(response.body)) as unknown,
   };
 }

@@ -1,3 +1,5 @@
+import { runtimeFiles } from "./api";
+
 export type LogLevel = "info" | "warning" | "error";
 export type LogLevelInput = LogLevel | "warn";
 
@@ -21,10 +23,10 @@ function normalizeLogLevel(value: string): LogLevel | "off" {
 }
 
 function readDebugLevel(): LogLevel | "off" {
-  if (!$file.exists(DEBUG_CONFIG_PATH)) {
+  if (!runtimeFiles.exists(DEBUG_CONFIG_PATH)) {
     return "off";
   }
-  return normalizeLogLevel($file.read(DEBUG_CONFIG_PATH).string ?? "off");
+  return normalizeLogLevel(runtimeFiles.readText(DEBUG_CONFIG_PATH) ?? "off");
 }
 
 function padNumber(value: number, length = 2): string {
@@ -45,8 +47,8 @@ function formatTimestamp(date: Date, forFileName = false): string {
 }
 
 function ensureDirectory(path: string): boolean {
-  if ($file.exists(path)) {
-    return $file.isDirectory(path);
+  if (runtimeFiles.exists(path)) {
+    return runtimeFiles.isDirectory(path);
   }
 
   const absolute = path.startsWith("/");
@@ -54,7 +56,7 @@ function ensureDirectory(path: string): boolean {
   let current = "";
   for (const part of parts) {
     current = current ? `${current}/${part}` : absolute ? `/${part}` : part;
-    if (!$file.exists(current) && !$file.mkdir(current)) {
+    if (!runtimeFiles.exists(current) && !runtimeFiles.mkdir(current)) {
       return false;
     }
   }
@@ -64,7 +66,9 @@ function ensureDirectory(path: string): boolean {
 const debugLevel = readDebugLevel();
 const logOn = debugLevel !== "off";
 const logLevel: LogLevel = logOn ? debugLevel : "info";
-const logDirectory = logOn ? `${LOG_ROOT_PATH}/log_${formatTimestamp(new Date(), true)}` : null;
+const logDirectory = logOn
+  ? `${LOG_ROOT_PATH}/log_${formatTimestamp(new Date(), true)}`
+  : null;
 
 if (logDirectory) {
   ensureDirectory(logDirectory);
@@ -80,8 +84,14 @@ function toLogLevel(level: LogLevelInput): LogLevel {
   return level === "warn" ? "warning" : level;
 }
 
-export function shouldLogLevel(level: LogLevelInput, minimumLevel: LogLevelInput): boolean {
-  return LOG_LEVEL_ORDER[toLogLevel(level)] >= LOG_LEVEL_ORDER[toLogLevel(minimumLevel)];
+export function shouldLogLevel(
+  level: LogLevelInput,
+  minimumLevel: LogLevelInput,
+): boolean {
+  return (
+    LOG_LEVEL_ORDER[toLogLevel(level)] >=
+    LOG_LEVEL_ORDER[toLogLevel(minimumLevel)]
+  );
 }
 
 function stringifyError(error: Error): string {
@@ -149,7 +159,11 @@ function stringifyContent(content: unknown): string {
   }
 }
 
-function createLogText(level: LogLevel, title: string, content: unknown): string {
+function createLogText(
+  level: LogLevel,
+  title: string,
+  content: unknown,
+): string {
   return [
     `time: ${formatTimestamp(new Date())}`,
     `level: ${level}`,
@@ -224,15 +238,12 @@ class Logger {
   }
 
   private writeFile(level: LogLevel, title: string, content: unknown): void {
-    if (!logDirectory || !$file.exists(logDirectory)) {
+    if (!logDirectory || !runtimeFiles.exists(logDirectory)) {
       return;
     }
     const index = padNumber(this.logIndex++, 6);
     const path = `${logDirectory}/${formatTimestamp(new Date(), true)}_${index}_${level}.log`;
-    $file.write({
-      data: $data({ string: createLogText(level, title, content) }),
-      path,
-    });
+    runtimeFiles.writeText(path, createLogText(level, title, content));
   }
 }
 

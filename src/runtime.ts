@@ -11,10 +11,15 @@ import type {
 } from "./venera-types";
 import { Convert } from "./convert";
 import { UI } from "./ui";
-import { HtmlDocumentWrapper, HtmlElementWrapper, HtmlNodeWrapper } from "./html-wrapper";
+import {
+  HtmlDocumentWrapper,
+  HtmlElementWrapper,
+  HtmlNodeWrapper,
+} from "./html-wrapper";
 import { Network, veneraFetch } from "./network";
 import { APP } from "./app";
 import { configManager } from "./config";
+import { createUuid, getClipboardText, setClipboardText } from "./api";
 
 /** 运行时注入给配置文件的 `Comic` 类。 */
 class Comic implements ComicShape {
@@ -147,7 +152,11 @@ export function createVeneraRuntime() {
    * 这套运行时会被注入到配置文件里，成为配置文件眼中的“全局环境”。
    */
 
-  function log(level: "info" | "warning" | "error", title: string, content?: unknown): void {
+  function log(
+    level: "info" | "warning" | "error",
+    title: string,
+    content?: unknown,
+  ): void {
     logger.log(level, title, content);
   }
 
@@ -217,16 +226,22 @@ export function createVeneraRuntime() {
         // 比较APP.locale和this.translation中的键值
         // 首先忽略大小写的差异、`-`和`_`的差异
         // 其次只取分隔符前面的字母进行比较
-        const normalizedLocale = APP.locale.toLocaleLowerCase().replaceAll("-", "_");
+        const normalizedLocale = APP.locale
+          .toLocaleLowerCase()
+          .replaceAll("-", "_");
         const keys = Object.keys(this.translation);
-        const normalizedKeys = keys.map((n) => n.toLocaleLowerCase().replaceAll("-", "_"));
+        const normalizedKeys = keys.map((n) =>
+          n.toLocaleLowerCase().replaceAll("-", "_"),
+        );
         const index = normalizedKeys.findIndex((n) => n === normalizedLocale);
         if (index !== -1) {
           const part = this.translation[keys[index]];
           return part?.[key] ?? key;
         } else {
           const normalizedLocale2 = normalizedLocale.split("_")[0];
-          const index2 = normalizedKeys.map((n) => n.split("_")[0]).findIndex((n) => n === normalizedLocale2);
+          const index2 = normalizedKeys
+            .map((n) => n.split("_")[0])
+            .findIndex((n) => n === normalizedLocale2);
           const part2 = this.translation[keys[index2]];
           return part2?.[key] ?? key;
         }
@@ -235,16 +250,21 @@ export function createVeneraRuntime() {
   }
 
   async function setClipboard(text: string): Promise<void> {
-    $clipboard.text = text;
+    await setClipboardText(text);
   }
 
   async function getClipboard(): Promise<string> {
-    return $clipboard.text || "";
+    return getClipboardText();
   }
 
-  async function compute<T = unknown>(func: string, ...args: unknown[]): Promise<T> {
+  async function compute<T = unknown>(
+    func: string,
+    ...args: unknown[]
+  ): Promise<T> {
     // 某些配置会把一段函数源码字符串交给运行时执行，这里做最简兼容。
-    const runner = new Function(`return (${func});`)() as (...input: unknown[]) => T;
+    const runner = new Function(`return (${func});`)() as (
+      ...input: unknown[]
+    ) => T;
     return runner(...args);
   }
 
@@ -273,9 +293,11 @@ export function createVeneraRuntime() {
     // 这些对象会作为参数注入到配置脚本里。
     // setTimeout,  // 环境中有全局的 setInterval，可兼容，但是 Venera 中可传入参数仅限(callback, delay)，也没有返回值。
     Convert,
-    createUuid: () => $text.uuid,
-    randomInt: (min: number, max: number) => Math.floor(min + Math.random() * (max - min)),
-    randomDouble: (min: number, max: number) => min + Math.random() * (max - min),
+    createUuid,
+    randomInt: (min: number, max: number) =>
+      Math.floor(min + Math.random() * (max - min)),
+    randomDouble: (min: number, max: number) =>
+      min + Math.random() * (max - min),
     // _Timer,  // 内部类
     // setInterval,  // 环境中有全局的 setInterval，可兼容，但是 Venera 中可传入参数仅限(callback, delay)，也没有返回值。
     Cookie: CookieClass,

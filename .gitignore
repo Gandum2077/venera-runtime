@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# venera-runtime generated test/build artifacts
+runtime-test-output/
+test-results/
+venera-runtime.box
+venera-runtime-debug.box
+app/main.js.LICENSE.txt
+
+# Runtime state created when this repository itself is used as a Node package
+assets/database.db
+.DS_Store

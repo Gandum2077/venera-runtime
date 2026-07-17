@@ -1,6 +1,4 @@
 import { dbManager } from "./database";
-import { toUint8Array } from "./tools";
-import { ConfigIndexEntry } from "./venera-types";
 
 function isBinaryData(value: unknown): value is ArrayBuffer | ArrayBufferView {
   return value instanceof ArrayBuffer || ArrayBuffer.isView(value);
@@ -13,12 +11,13 @@ class ConfigManager {
   constructor() {
     this._veneraData = this._queryVeneraData();
     this._veneraSettings = this._queryVeneraSettings();
-    this._locale = this._queryLocale() || new Intl.DateTimeFormat().resolvedOptions().locale;
+    this._locale =
+      this._queryLocale() || new Intl.DateTimeFormat().resolvedOptions().locale;
   }
 
   _queryLocale(): string | null {
     const sql = `SELECT value FROM locale WHERE key = 'locale' LIMIT 1`;
-    const rows = dbManager.query(sql);
+    const rows = dbManager.query(sql) as Array<{ value: string }>;
     return rows[0]?.value ?? null;
   }
 
@@ -27,7 +26,10 @@ class ConfigManager {
   }
 
   set locale(value: string) {
-    dbManager.update(`INSERT OR REPLACE INTO locale (key, value) VALUES ('locale', ?)`, [value]);
+    dbManager.update(
+      `INSERT OR REPLACE INTO locale (key, value) VALUES ('locale', ?)`,
+      [value],
+    );
     this._locale = value || new Intl.DateTimeFormat().resolvedOptions().locale;
   }
 
@@ -53,17 +55,16 @@ class ConfigManager {
     return result;
   }
 
-  private _queryBinaryData(sourceKey: string, key: string): ArrayBuffer | undefined {
+  private _queryBinaryData(
+    sourceKey: string,
+    key: string,
+  ): ArrayBuffer | undefined {
     const sql = `SELECT data FROM venera_source_data WHERE sourceKey = ? AND key = ? AND type = ? LIMIT 1`;
     const rows = dbManager.query(sql, [sourceKey, key, "data"]) as Array<{
-      data: NSData;
+      data: ArrayBuffer;
     }>;
     const data = rows[0]?.data;
-    if (data) {
-      return new Uint8Array(data.byteArray).buffer;
-    } else {
-      return;
-    }
+    return data;
   }
 
   private _queryVeneraSettings(): Map<string, Map<string, unknown>> {
@@ -102,7 +103,7 @@ class ConfigManager {
       }
       dbManager.update(
         `INSERT OR REPLACE INTO venera_source_data (sourceKey, key, type, json, data) VALUES (?, ?, ?, ?, ?)`,
-        [sourceKey, key, "data", null, $data({ byteArray: toUint8Array(value) })],
+        [sourceKey, key, "data", null, value],
       );
       return;
     }
@@ -124,7 +125,10 @@ class ConfigManager {
         this._veneraData.delete(sourceKey);
       }
     }
-    dbManager.update(`DELETE FROM venera_source_data WHERE sourceKey = ? AND key = ?`, [sourceKey, key]);
+    dbManager.update(
+      `DELETE FROM venera_source_data WHERE sourceKey = ? AND key = ?`,
+      [sourceKey, key],
+    );
   }
 
   getSetting(sourceKey: string, key: string): unknown {
@@ -140,11 +144,10 @@ class ConfigManager {
       this._veneraSettings.set(sourceKey, new Map());
     }
     this._veneraSettings.get(sourceKey)!.set(key, value);
-    dbManager.update(`INSERT OR REPLACE INTO venera_source_settings (sourceKey, key, value) VALUES (?, ?, ?)`, [
-      sourceKey,
-      key,
-      JSON.stringify(value),
-    ]);
+    dbManager.update(
+      `INSERT OR REPLACE INTO venera_source_settings (sourceKey, key, value) VALUES (?, ?, ?)`,
+      [sourceKey, key, JSON.stringify(value)],
+    );
   }
 }
 

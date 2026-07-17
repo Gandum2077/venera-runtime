@@ -1,70 +1,53 @@
-/**
- * 这个文件实现了“图片解扰/二次处理运行时”。
- *
- * 某些配置源（例如 `jm.js`）会在 `comic.onImageLoad()` 里返回：
- * - 自定义请求头
- * - 或者 `modifyImage` 脚本
- *
- * 原版 Venera 会把图片读到内存里，再交给一个自定义 `Image` 类处理。
- * 这里做了同样的事。
- */
+import { runtimeImages, RuntimeImageHandle } from "./api";
+
 function assertInteger(value: number, label: string): void {
-  if (!Number.isInteger(value)) {
-    throw new Error(`${label} must be an integer`);
-  }
+  if (!Number.isInteger(value)) throw new Error(`${label} must be an integer`);
 }
 
-function assertBounds(condition: boolean, message: string): void {
-  if (!condition) {
-    throw new Error(message);
-  }
+function assertBounds(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
 }
 
 class RuntimeImage {
-  key: number = 0;
-  _uiimage: UIImage;
+  private handle: RuntimeImageHandle;
 
-  constructor(
-    key: number,
-    options?: {
-      size?: JBSize;
-      image?: UIImage;
-    },
-  ) {
-    this.key = key;
-    this._uiimage = options?.image
-      ? options.image
-      : $imagekit.render({ size: $size(options?.size?.width ?? 100, options?.size?.height ?? 100) }, () => {});
+  constructor(handle: RuntimeImageHandle) {
+    this.handle = handle;
   }
 
-  copyRange(x: number, y: number, width: number, height: number) {
+  copyRange(x: number, y: number, width: number, height: number): RuntimeImage {
     assertInteger(x, "x");
     assertInteger(y, "y");
     assertInteger(width, "width");
     assertInteger(height, "height");
     assertBounds(x >= 0 && y >= 0, "x and y must be non-negative");
     assertBounds(width > 0 && height > 0, "width and height must be positive");
-    assertBounds(x + width <= this.width && y + height <= this.height, "copyRange exceeds image bounds");
-    if (x === 0 && y === 0) {
-      const s1 = $imagekit.cropTo(this._uiimage, $size(width, height), 0);
-      return new RuntimeImage(0, { image: s1 });
-    } else {
-      const s1 = $imagekit.cropTo(this._uiimage, $size(width + x, height + y), 0);
-      const s2 = $imagekit.cropTo(s1, $size(width, height), 5);
-      return new RuntimeImage(0, { image: s2 });
-    }
+    assertBounds(
+      x + width <= this.width && y + height <= this.height,
+      "copyRange exceeds image bounds",
+    );
+    return new RuntimeImage(
+      runtimeImages.crop(this.handle, x, y, width, height),
+    );
   }
 
-  copyAndRotate90() {
-    return new RuntimeImage(0, { image: $imagekit.rotate(this._uiimage, -Math.PI * 0.5) });
+  copyAndRotate90(): RuntimeImage {
+    return new RuntimeImage(runtimeImages.rotate90(this.handle));
   }
 
-  fillImageAt(x: number, y: number, image: RuntimeImage) {
+  fillImageAt(x: number, y: number, image: RuntimeImage): void {
     assertInteger(x, "x");
     assertInteger(y, "y");
     assertBounds(x >= 0 && y >= 0, "x and y must be non-negative");
-    assertBounds(image instanceof RuntimeImage, "image must be an instance of RuntimeImage");
-    this._uiimage = $imagekit.combine(this._uiimage, image._uiimage, $point(x, y));
+    assertBounds(
+      image instanceof RuntimeImage,
+      "image must be an instance of RuntimeImage",
+    );
+    assertBounds(
+      x + image.width <= this.width && y + image.height <= this.height,
+      "destination range exceeds image bounds",
+    );
+    this.handle = runtimeImages.fill(this.handle, x, y, image.handle);
   }
 
   fillImageRangeAt(
@@ -75,74 +58,81 @@ class RuntimeImage {
     srcY: number,
     width: number,
     height: number,
-  ) {
-    assertInteger(x, "x");
-    assertInteger(y, "y");
-    assertInteger(srcX, "srcX");
-    assertInteger(srcY, "srcY");
-    assertInteger(width, "width");
-    assertInteger(height, "height");
+  ): void {
+    for (const [value, label] of [
+      [x, "x"],
+      [y, "y"],
+      [srcX, "srcX"],
+      [srcY, "srcY"],
+      [width, "width"],
+      [height, "height"],
+    ] as const) {
+      assertInteger(value, label);
+    }
+    assertBounds(
+      image instanceof RuntimeImage,
+      "image must be an instance of RuntimeImage",
+    );
     assertBounds(x >= 0 && y >= 0, "x and y must be non-negative");
     assertBounds(srcX >= 0 && srcY >= 0, "srcX and srcY must be non-negative");
     assertBounds(width > 0 && height > 0, "width and height must be positive");
-    assertBounds(srcX + width <= image.width && srcY + height <= image.height, "source range exceeds image bounds");
-    assertBounds(x + width <= this.width && y + height <= this.height, "destination range exceeds image bounds");
-    if (x === 0 && y === 0) {
-      const s1 = $imagekit.cropTo(image._uiimage, $size(width, height), 0);
-      this._uiimage = $imagekit.combine(this._uiimage, s1, $point(x, y));
-    } else {
-      const s1 = $imagekit.cropTo(image._uiimage, $size(width + srcX, height + srcY), 0);
-      const s2 = $imagekit.cropTo(s1, $size(width, height), 5);
-      this._uiimage = $imagekit.combine(this._uiimage, s2, $point(x, y));
-    }
+    assertBounds(
+      srcX + width <= image.width && srcY + height <= image.height,
+      "source range exceeds image bounds",
+    );
+    assertBounds(
+      x + width <= this.width && y + height <= this.height,
+      "destination range exceeds image bounds",
+    );
+    const source = runtimeImages.crop(image.handle, srcX, srcY, width, height);
+    this.handle = runtimeImages.fill(this.handle, x, y, source);
   }
 
   get width(): number {
-    return this._uiimage.size.width;
+    return this.handle.width;
   }
 
   get height(): number {
-    return this._uiimage.size.height;
+    return this.handle.height;
   }
 
   static empty(width: number, height: number): RuntimeImage {
     assertInteger(width, "width");
     assertInteger(height, "height");
     assertBounds(width > 0 && height > 0, "width and height must be positive");
-    return new RuntimeImage(0, {
-      size: $size(width, height),
-    });
+    return new RuntimeImage(runtimeImages.empty(width, height));
+  }
+
+  async encodePng(): Promise<ArrayBuffer> {
+    return runtimeImages.encodePng(this.handle);
   }
 }
 
-function createModifyImageFunction(script: string): (image: RuntimeImage) => RuntimeImage {
-  /**
-   * 这里动态执行配置里给出的 `modifyImage` 脚本。
-   *
-   * 注意：脚本里访问到的 `Image` 是 `RuntimeImage` 类，这与 Venera 原项目的约定一致。
-   */
+function createModifyImageFunction(
+  script: string,
+): (image: RuntimeImage) => RuntimeImage {
   const factory = new Function(
     "Image",
     `"use strict";\n${script}\nif (typeof modifyImage !== "function") { throw new Error("modifyImage is not defined"); }\nreturn modifyImage;`,
   ) as (ImageClass: typeof RuntimeImage) => unknown;
-
-  const modifyImage = factory(RuntimeImage);
-  if (typeof modifyImage !== "function") {
+  const modify = factory(RuntimeImage);
+  if (typeof modify !== "function")
     throw new Error("modifyImage script did not return a function");
-  }
-
   return (image: RuntimeImage) => {
-    const result = (modifyImage as (value: RuntimeImage) => unknown)(image);
-    if (!(result instanceof RuntimeImage)) {
+    const result = (modify as (value: RuntimeImage) => unknown)(image);
+    if (!(result instanceof RuntimeImage))
       throw new Error("modifyImage must return an Image");
-    }
     return result;
   };
 }
 
-export function modifyImage(data: NSData, script: string) {
-  const image = new RuntimeImage(0, { image: data.image });
-  const modifyImage = createModifyImageFunction(script);
-  const modified = modifyImage(image);
-  return modified._uiimage.png;
+/** 对齐 Venera 的 Image 脚本能力，双方统一接收和返回图片字节。 */
+export async function modifyImage(
+  data: ArrayBuffer | ArrayBufferView | NSData,
+  script: string,
+): Promise<ArrayBuffer> {
+  const bytes =
+    "byteArray" in data ? Uint8Array.from(data.byteArray).buffer : data;
+  const input = new RuntimeImage(await runtimeImages.decode(bytes));
+  return createModifyImageFunction(script)(input).encodePng();
 }

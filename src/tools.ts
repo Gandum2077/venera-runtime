@@ -11,7 +11,9 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function toUint8Array(value: ArrayBufferLikeInput | number[]): Uint8Array {
+export function toUint8Array(
+  value: ArrayBufferLikeInput | number[],
+): Uint8Array {
   // 配置文件里有时传 ArrayBuffer，有时传 TypedArray，有时甚至直接传 number[]。
   // 这里统一收敛成 Uint8Array，后面的编码/哈希逻辑就简单很多。
   if (value instanceof Uint8Array) {
@@ -31,7 +33,10 @@ export function toUint8Array(value: ArrayBufferLikeInput | number[]): Uint8Array
 
 export function toArrayBuffer(value: ArrayBufferLikeInput): ArrayBuffer {
   const bytes = toUint8Array(value);
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
 }
 
 export function guessExtension(url: string): string {

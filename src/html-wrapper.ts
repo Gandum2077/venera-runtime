@@ -1,12 +1,21 @@
 import { load, type CheerioAPI } from "cheerio";
 import { type AnyNode, type ChildNode, type Element, isTag } from "domhandler";
 
-function wrapElement(root: CheerioAPI, element: Element | null | undefined): HtmlElementWrapper | null {
+function wrapElement(
+  root: CheerioAPI,
+  element: Element | null | undefined,
+): HtmlElementWrapper | null {
   return element ? new HtmlElementWrapper(root, element) : null;
 }
 
-function wrapElements(root: CheerioAPI, elements: Iterable<Element>): HtmlElementWrapper[] {
-  return Array.from(elements, (element) => new HtmlElementWrapper(root, element));
+function wrapElements(
+  root: CheerioAPI,
+  elements: Iterable<Element>,
+): HtmlElementWrapper[] {
+  return Array.from(
+    elements,
+    (element) => new HtmlElementWrapper(root, element),
+  );
 }
 
 function findFirstElement(nodes: Iterable<AnyNode>): Element | undefined {
@@ -25,7 +34,10 @@ function getNodeText(root: CheerioAPI, node: AnyNode): string {
   return root(node).text();
 }
 
-function getAdjacentElement(node: AnyNode, direction: "prev" | "next"): Element | null {
+function getAdjacentElement(
+  node: AnyNode,
+  direction: "prev" | "next",
+): Element | null {
   let current = direction === "prev" ? node.prev : node.next;
   while (current) {
     if (isTag(current)) {
@@ -66,7 +78,9 @@ export class HtmlNodeWrapper {
   }
 
   toElement(): HtmlElementWrapper | null {
-    return isTag(this.node) ? new HtmlElementWrapper(this.root, this.node) : null;
+    return isTag(this.node)
+      ? new HtmlElementWrapper(this.root, this.node)
+      : null;
   }
 }
 
@@ -89,11 +103,17 @@ export class HtmlElementWrapper {
   }
 
   querySelector(selector: string): HtmlElementWrapper | null {
-    return wrapElement(this.root, this.root(this.element).find(selector).get(0));
+    return wrapElement(
+      this.root,
+      this.root(this.element).find(selector).get(0),
+    );
   }
 
   querySelectorAll(selector: string): HtmlElementWrapper[] {
-    return wrapElements(this.root, this.root(this.element).find(selector).toArray());
+    return wrapElements(
+      this.root,
+      this.root(this.element).find(selector).toArray(),
+    );
   }
 
   get children(): HtmlElementWrapper[] {
@@ -101,7 +121,9 @@ export class HtmlElementWrapper {
   }
 
   get nodes(): HtmlNodeWrapper[] {
-    return this.element.childNodes.map((node: ChildNode) => new HtmlNodeWrapper(this.root, node));
+    return this.element.childNodes.map(
+      (node: ChildNode) => new HtmlNodeWrapper(this.root, node),
+    );
   }
 
   get innerHTML(): string {
@@ -110,7 +132,9 @@ export class HtmlElementWrapper {
 
   get parent(): HtmlElementWrapper | null {
     const parent = this.element.parent;
-    return parent && isTag(parent) ? new HtmlElementWrapper(this.root, parent) : null;
+    return parent && isTag(parent)
+      ? new HtmlElementWrapper(this.root, parent)
+      : null;
   }
 
   get classNames(): string[] {
@@ -144,7 +168,10 @@ export class HtmlDocumentWrapper {
   }
 
   querySelector(selector: string): HtmlElementWrapper | null {
-    return wrapElement(this.root, findFirstElement(this.root(selector).toArray()));
+    return wrapElement(
+      this.root,
+      findFirstElement(this.root(selector).toArray()),
+    );
   }
 
   querySelectorAll(selector: string): HtmlElementWrapper[] {
