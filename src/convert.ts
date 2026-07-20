@@ -108,40 +108,132 @@ function cipherParams(
   return CryptoJS.lib.CipherParams.create({ ciphertext });
 }
 
-function encryptWithAes(
+const AES_BLOCK_BYTES = 16;
+
+function validateAesKey(key: ArrayBufferLikeInput): Uint8Array {
+  const bytes = toUint8Array(key);
+  if (![16, 24, 32].includes(bytes.byteLength)) {
+    throw new Error("AES key must contain 16, 24, or 32 bytes");
+  }
+  return bytes;
+}
+
+function validateAesIv(iv: ArrayBufferLikeInput): Uint8Array {
+  const bytes = toUint8Array(iv);
+  if (bytes.byteLength !== AES_BLOCK_BYTES) {
+    throw new Error("AES IV must contain exactly 16 bytes");
+  }
+  return bytes;
+}
+
+function validateBlockAlignedInput(
+  value: ArrayBufferLikeInput,
+  blockBytes: number,
+): Uint8Array {
+  const bytes = toUint8Array(value);
+  if (bytes.byteLength % blockBytes !== 0) {
+    throw new Error(
+      `AES input length must be a multiple of ${blockBytes} bytes`,
+    );
+  }
+  return bytes;
+}
+
+function validateFeedbackBlockSize(blockSize: number): number {
+  if (
+    !Number.isInteger(blockSize) ||
+    blockSize < 8 ||
+    blockSize > AES_BLOCK_BYTES * 8 ||
+    blockSize % 8 !== 0
+  ) {
+    throw new Error(
+      "AES feedback block size must be a multiple of 8 from 8 to 128 bits",
+    );
+  }
+  return blockSize / 8;
+}
+
+function encryptWithAesBlockMode(
   value: ArrayBufferLikeInput,
   key: ArrayBufferLikeInput,
   mode: unknown,
   iv?: ArrayBufferLikeInput,
 ): ArrayBuffer {
+  validateBlockAlignedInput(value, AES_BLOCK_BYTES);
+  validateAesKey(key);
+  if (iv) validateAesIv(iv);
   const encrypted = CryptoJS.AES.encrypt(
     arrayBufferToWordArray(value),
     arrayBufferToWordArray(key),
     {
       iv: iv ? arrayBufferToWordArray(iv) : undefined,
       mode: mode as never,
-      padding: CryptoJS.pad.Pkcs7,
+      padding: CryptoJS.pad.NoPadding,
     },
   );
   return wordArrayToArrayBuffer(encrypted.ciphertext);
 }
 
-function decryptWithAes(
+function decryptWithAesBlockMode(
   value: ArrayBufferLikeInput,
   key: ArrayBufferLikeInput,
   mode: unknown,
   iv?: ArrayBufferLikeInput,
 ): ArrayBuffer {
+  validateBlockAlignedInput(value, AES_BLOCK_BYTES);
+  validateAesKey(key);
+  if (iv) validateAesIv(iv);
   const decrypted = CryptoJS.AES.decrypt(
     cipherParams(arrayBufferToWordArray(value)),
     arrayBufferToWordArray(key),
     {
       iv: iv ? arrayBufferToWordArray(iv) : undefined,
       mode: mode as never,
-      padding: CryptoJS.pad.Pkcs7,
+      padding: CryptoJS.pad.NoPadding,
     },
   );
   return wordArrayToArrayBuffer(decrypted);
+}
+
+function encryptAesBlock(
+  value: ArrayBufferLikeInput,
+  key: ArrayBufferLikeInput,
+): Uint8Array {
+  const encrypted = encryptWithAesBlockMode(value, key, CryptoJS.mode.ECB);
+  return new Uint8Array(encrypted);
+}
+
+function processAesFeedbackMode(
+  value: ArrayBufferLikeInput,
+  key: ArrayBufferLikeInput,
+  initialRegister: ArrayBufferLikeInput,
+  blockSize: number,
+  mode: "cfb-encrypt" | "cfb-decrypt" | "ofb",
+): ArrayBuffer {
+  const segmentBytes = validateFeedbackBlockSize(blockSize);
+  const input = validateBlockAlignedInput(value, segmentBytes);
+  const secret = validateAesKey(key);
+  const register = new Uint8Array(validateAesIv(initialRegister));
+  const output = new Uint8Array(input.byteLength);
+
+  for (let offset = 0; offset < input.byteLength; offset += segmentBytes) {
+    const encryptedRegister = encryptAesBlock(register, secret);
+    for (let index = 0; index < segmentBytes; index += 1) {
+      output[offset + index] =
+        input[offset + index]! ^ encryptedRegister[index]!;
+    }
+
+    register.copyWithin(0, segmentBytes);
+    const feedback =
+      mode === "cfb-decrypt"
+        ? input.subarray(offset, offset + segmentBytes)
+        : mode === "cfb-encrypt"
+          ? output.subarray(offset, offset + segmentBytes)
+          : encryptedRegister.subarray(0, segmentBytes);
+    register.set(feedback, AES_BLOCK_BYTES - segmentBytes);
+  }
+
+  return output.buffer;
 }
 
 function hexEncode(value: ArrayBufferLikeInput): string {
@@ -166,20 +258,34 @@ export const Convert: ConvertApi = {
     wordArrayToArrayBuffer(hmacWordArray(key, value, hash)),
   hmacString: (key, value, hash) =>
     hmacWordArray(key, value, hash).toString(CryptoJS.enc.Hex),
-  encryptAesEcb: (value, key) => encryptWithAes(value, key, CryptoJS.mode.ECB),
-  decryptAesEcb: (value, key) => decryptWithAes(value, key, CryptoJS.mode.ECB),
+  encryptAesEcb: (value, key) =>
+    encryptWithAesBlockMode(value, key, CryptoJS.mode.ECB),
+  decryptAesEcb: (value, key) =>
+    decryptWithAesBlockMode(value, key, CryptoJS.mode.ECB),
   encryptAesCbc: (value, key, iv) =>
-    encryptWithAes(value, key, CryptoJS.mode.CBC, iv),
+    encryptWithAesBlockMode(value, key, CryptoJS.mode.CBC, iv),
   decryptAesCbc: (value, key, iv) =>
-    decryptWithAes(value, key, CryptoJS.mode.CBC, iv),
-  encryptAesCfb: (value, key, iv) =>
-    encryptWithAes(value, key, CryptoJS.mode.CFB, iv),
-  decryptAesCfb: (value, key, iv) =>
-    decryptWithAes(value, key, CryptoJS.mode.CFB, iv),
+    decryptWithAesBlockMode(value, key, CryptoJS.mode.CBC, iv),
+  encryptAesCfb: (value, key, iv, blockSize) =>
+    processAesFeedbackMode(value, key, iv, blockSize, "cfb-encrypt"),
+  decryptAesCfb: (value, key, iv, blockSize) =>
+    processAesFeedbackMode(value, key, iv, blockSize, "cfb-decrypt"),
   encryptAesOfb: (value, key, blockSize) =>
-    encryptWithAes(value, key, CryptoJS.mode.OFB, new Uint8Array(blockSize)),
+    processAesFeedbackMode(
+      value,
+      key,
+      new Uint8Array(AES_BLOCK_BYTES),
+      blockSize,
+      "ofb",
+    ),
   decryptAesOfb: (value, key, blockSize) =>
-    decryptWithAes(value, key, CryptoJS.mode.OFB, new Uint8Array(blockSize)),
+    processAesFeedbackMode(
+      value,
+      key,
+      new Uint8Array(AES_BLOCK_BYTES),
+      blockSize,
+      "ofb",
+    ),
   decryptRsa: () =>
     unsupportedFeature("RSA decrypt is not implemented in venera-runtime"),
   hexEncode,

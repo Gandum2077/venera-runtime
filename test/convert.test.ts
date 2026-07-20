@@ -5,6 +5,12 @@ function hex(value: ArrayBuffer | ArrayBufferView): string {
   return Convert.hexEncode(value);
 }
 
+function bytes(value: string): Uint8Array {
+  return Uint8Array.from(value.match(/../g) ?? [], (part) =>
+    Number.parseInt(part, 16),
+  );
+}
+
 describe("Convert", () => {
   it("matches standard hash and HMAC vectors", () => {
     const value = Convert.encodeUtf8("abc");
@@ -31,35 +37,54 @@ describe("Convert", () => {
     ).toBe("漫画📚");
   });
 
-  it("round-trips all AES modes exposed by Venera", () => {
-    const value = Convert.encodeUtf8("sixteen-byte-msg");
-    const key = Convert.encodeUtf8("0123456789abcdef");
-    const iv = Convert.encodeUtf8("abcdef0123456789");
-    expect(
-      Convert.decodeUtf8(
-        Convert.decryptAesEcb(Convert.encryptAesEcb(value, key), key),
-      ),
-    ).toBe("sixteen-byte-msg");
-    expect(
-      Convert.decodeUtf8(
-        Convert.decryptAesCbc(Convert.encryptAesCbc(value, key, iv), key, iv),
-      ),
-    ).toBe("sixteen-byte-msg");
-    expect(
-      Convert.decodeUtf8(
-        Convert.decryptAesCfb(
-          Convert.encryptAesCfb(value, key, iv, 128),
-          key,
-          iv,
-          128,
-        ),
-      ),
-    ).toBe("sixteen-byte-msg");
-    expect(
-      Convert.decodeUtf8(
-        Convert.decryptAesOfb(Convert.encryptAesOfb(value, key, 16), key, 16),
-      ),
-    ).toBe("sixteen-byte-msg");
+  it("matches raw AES vectors without adding PKCS#7 padding", () => {
+    const ecbKey = bytes("000102030405060708090a0b0c0d0e0f");
+    const ecbPlaintext = bytes("00112233445566778899aabbccddeeff");
+    const ecbCiphertext = "69c4e0d86a7b0430d8cdb78070b4c55a";
+    expect(hex(Convert.encryptAesEcb(ecbPlaintext, ecbKey))).toBe(
+      ecbCiphertext,
+    );
+    expect(hex(Convert.decryptAesEcb(bytes(ecbCiphertext), ecbKey))).toBe(
+      hex(ecbPlaintext),
+    );
+    expect(Convert.encryptAesEcb(ecbPlaintext, ecbKey).byteLength).toBe(16);
+    expect(() => Convert.encryptAesEcb(new Uint8Array(15), ecbKey)).toThrow(
+      "multiple of 16 bytes",
+    );
+
+    const key = bytes("2b7e151628aed2a6abf7158809cf4f3c");
+    const iv = bytes("000102030405060708090a0b0c0d0e0f");
+    const plaintext = bytes("6bc1bee22e409f96e93d7e117393172a");
+    const cbcCiphertext = "7649abac8119b246cee98e9b12e9197d";
+    expect(hex(Convert.encryptAesCbc(plaintext, key, iv))).toBe(cbcCiphertext);
+    expect(hex(Convert.decryptAesCbc(bytes(cbcCiphertext), key, iv))).toBe(
+      hex(plaintext),
+    );
+  });
+
+  it("honors Venera's CFB and OFB feedback block size", () => {
+    const key = bytes("2b7e151628aed2a6abf7158809cf4f3c");
+    const iv = bytes("000102030405060708090a0b0c0d0e0f");
+    const plaintext = bytes("6bc1bee22e409f96e93d7e117393172a");
+    const cfb128 = "3b3fd92eb72dad20333449f8e83cfb4a";
+    expect(hex(Convert.encryptAesCfb(plaintext, key, iv, 128))).toBe(cfb128);
+    expect(hex(Convert.decryptAesCfb(bytes(cfb128), key, iv, 128))).toBe(
+      hex(plaintext),
+    );
+
+    const zeroIv = new Uint8Array(16);
+    const cfb8 = "1686d6e534f1c31434af11ff69ebede0";
+    expect(hex(Convert.encryptAesCfb(plaintext, key, zeroIv, 8))).toBe(cfb8);
+    expect(hex(Convert.decryptAesCfb(bytes(cfb8), key, zeroIv, 8))).toBe(
+      hex(plaintext),
+    );
+
+    // Venera initializes OFB with KeyParameter only, which means a zero IV.
+    const ofb128 = "1636d5ee34f80625d77f8e56ca884345";
+    expect(hex(Convert.encryptAesOfb(plaintext, key, 128))).toBe(ofb128);
+    expect(hex(Convert.decryptAesOfb(bytes(ofb128), key, 128))).toBe(
+      hex(plaintext),
+    );
   });
 
   it("reports RSA as intentionally unavailable", () => {

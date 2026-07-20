@@ -128,7 +128,7 @@ class Comment implements CommentShape {
 class ImageLoadingConfig implements ImageLoadingConfigShape {
   url?: string;
   method?: string;
-  data?: BodyInit | null;
+  data?: unknown;
   headers?: Record<string, string>;
   onResponse?: ((data: ArrayBuffer) => ArrayBuffer) | null;
   modifyImage?: string;
@@ -277,6 +277,8 @@ export function createVeneraRuntime() {
     expires?: string | null;
     secure?: boolean;
     httpOnly?: boolean;
+    hostOnly?: boolean;
+    maxAge?: number | null;
 
     constructor(data: CookieRecord) {
       this.name = data.name;
@@ -286,6 +288,8 @@ export function createVeneraRuntime() {
       this.expires = data.expires;
       this.secure = data.secure;
       this.httpOnly = data.httpOnly;
+      this.hostOnly = data.hostOnly;
+      this.maxAge = data.maxAge;
     }
   }
 
@@ -294,10 +298,9 @@ export function createVeneraRuntime() {
     // setTimeout,  // 环境中有全局的 setInterval，可兼容，但是 Venera 中可传入参数仅限(callback, delay)，也没有返回值。
     Convert,
     createUuid,
-    randomInt: (min: number, max: number) =>
+    randomInt: (min = 0, max = 1) =>
       Math.floor(min + Math.random() * (max - min)),
-    randomDouble: (min: number, max: number) =>
-      min + Math.random() * (max - min),
+    randomDouble: (min = 0, max = 1) => min + Math.random() * (max - min),
     // _Timer,  // 内部类
     // setInterval,  // 环境中有全局的 setInterval，可兼容，但是 Venera 中可传入参数仅限(callback, delay)，也没有返回值。
     Cookie: CookieClass,
@@ -312,7 +315,7 @@ export function createVeneraRuntime() {
     ComicDetails,
     Comment,
     ImageLoadingConfig, // 为了兼容老版本，这个类不允许被直接创建，只能创建同属性的对象(当前版本: 1.6.3)
-    ComicSource: ComicSource as unknown as new () => VeneraConfigSource,
+    ComicSource,
     // Image,  // The api can only be used in the comic.onImageLoad.modifyImage function.
     UI,
     APP,

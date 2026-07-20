@@ -64,6 +64,14 @@ export interface CookieRecord {
   expires?: string | null;
   secure?: boolean;
   httpOnly?: boolean;
+  /** Whether the cookie is restricted to the exact host that created it. */
+  hostOnly?: boolean;
+  /** Set-Cookie Max-Age value in seconds, when one was supplied. */
+  maxAge?: number | null;
+  /** Original Venera field name returned by `Network.getCookies()`. */
+  "max-age"?: number | null;
+  /** Whether this cookie has no persistent expiration. */
+  session?: boolean;
 }
 
 /** 网络请求统一返回结构。 */
@@ -146,7 +154,7 @@ export interface ComicDetailsShape {
 export interface ImageLoadingConfigShape {
   url?: string;
   method?: string;
-  data?: BodyInit | null;
+  data?: unknown;
   headers?: Record<string, string>;
   onResponse?: ((data: ArrayBuffer) => ArrayBuffer) | null;
   modifyImage?: string;
@@ -170,7 +178,7 @@ export interface AccountLoginWithWebview {
 /** 通过 Cookie 字段登录的配置。 */
 export interface AccountLoginWithCookies {
   fields: string[];
-  validate(values: string[]): Promise<boolean>;
+  validate(values: string[]): MaybePromise<boolean>;
 }
 
 /** 一个配置源的登录能力。 */
@@ -178,7 +186,7 @@ export interface AccountConfig {
   login?: (account: string, pwd: string) => MaybePromise<unknown>;
   loginWithWebview?: AccountLoginWithWebview;
   loginWithCookies?: AccountLoginWithCookies;
-  logout?: () => void;
+  logout?: () => MaybePromise<void>;
   registerWebsite?: string | null;
 }
 
@@ -235,7 +243,7 @@ export interface SearchOptions {
   type?: SearchOptionType;
   options: string[];
   label?: string;
-  default?: string | string[] | null;
+  default?: string | number | string[] | null;
 }
 
 /** 搜索页返回值。 */
@@ -308,7 +316,7 @@ export interface CategoryComicsOptions {
 export interface RankingData {
   options: string[];
   load?: (option: string, page: number) => Promise<SearchPageResult>;
-  loadNext?: (
+  loadWithNext?: (
     option: string,
     next: string | null,
   ) => Promise<{ comics: ComicShape[]; next?: string | null }>;
@@ -392,21 +400,21 @@ export interface FavoritesSection {
 
 /** 设置项的可选项。 */
 export interface SettingOption {
-  value: string;
+  value: string | number;
   text?: string;
 }
 
 /** 所有设置项共有的最小结构。 */
 export interface SettingBaseDefinition {
   title: string;
-  default?: string | boolean | null;
+  default?: string | number | boolean | null;
 }
 
 /** 下拉选择型设置。 */
 export interface SettingSelectDefinition extends SettingBaseDefinition {
   type: "select";
   options: SettingOption[];
-  default?: string;
+  default?: string | number;
 }
 
 /** 开关型设置。 */
@@ -426,7 +434,7 @@ export interface SettingInputDefinition extends SettingBaseDefinition {
 export interface SettingCallbackDefinition extends SettingBaseDefinition {
   type: "callback";
   buttonText?: string;
-  callback: () => MaybePromise<void>;
+  callback: () => MaybePromise<unknown>;
 }
 
 /** 设置项联合类型。 */
@@ -493,6 +501,8 @@ export interface ComicSection {
     commentId: string,
     isLiking: boolean,
   ) => MaybePromise<number | null | undefined>;
+  likeComic?: (comicId: string, isLiking: boolean) => MaybePromise<unknown>;
+  starRating?: (comicId: string, rating: number) => MaybePromise<unknown>;
   loadThumbnails?: (
     comicId: string,
     next?: string | null,
@@ -503,8 +513,14 @@ export interface ComicSection {
     epId?: string | null,
   ) => MaybePromise<ImageLoadingConfigShape>;
   onThumbnailLoad?: (url: string) => MaybePromise<ImageLoadingConfigShape>;
-  onClickTag?: (namespace: string, tag: string) => PageJumpTargetLike;
+  onClickTag?: (
+    namespace: string,
+    tag: string,
+  ) => PageJumpTargetLike | null | undefined;
+  /** Regex source used to recognize a comic id from user input. */
+  idMatch?: string | null;
   link?: LinkHandler;
+  archive?: ArchiveDownloader;
   enableTagsTranslate?: boolean;
 }
 
@@ -542,7 +558,7 @@ export interface VeneraConfigSource {
 export interface AppRuntimeInfo {
   readonly version: string;
   readonly locale: string;
-  readonly platform: string;
+  readonly platform: "android" | "ios" | "windows" | "macos" | "linux";
 }
 
 /**
@@ -673,7 +689,7 @@ export interface UIApi {
       callback: () => void | Promise<void>;
       style?: "text" | "filled" | "danger";
     }[],
-  ): void;
+  ): Promise<void>;
   launchUrl(url: string): void;
   showLoading(onCancel?: (() => void) | null): number;
   cancelLoading(id: number): void;
@@ -705,7 +721,10 @@ export interface RuntimeGlobals {
   APP: AppRuntimeInfo;
   Comic: new (data?: ComicShape) => ComicShape;
   ComicDetails: new (data?: ComicDetailsShape) => ComicDetailsShape;
-  ComicSource: new () => VeneraConfigSource;
+  ComicSource: {
+    new (): VeneraConfigSource;
+    sources: Record<string, VeneraConfigSource>;
+  };
   Comment: new (data?: CommentShape) => CommentShape;
   Convert: ConvertApi;
   Cookie: new (data: CookieRecord) => CookieRecord;
@@ -727,7 +746,7 @@ export interface RuntimeGlobals {
   createUuid(): string;
   fetch(url: string, options?: RequestInit): Promise<FetchCompatResponse>;
   getClipboard(): Promise<string>;
-  randomDouble(min: number, max: number): number;
-  randomInt(min: number, max: number): number;
+  randomDouble(min?: number, max?: number): number;
+  randomInt(min?: number, max?: number): number;
   setClipboard(text: string): Promise<void>;
 }

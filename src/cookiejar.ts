@@ -80,6 +80,7 @@ function parseCookieString(cookieStr: string): CookieRecord {
   const [name, ...valueParts] = nameValue.split("=");
   const value: string = valueParts.join("=");
   const cookieObj: CookieRecord = { name, value };
+  let maxAge: number | undefined;
 
   // 解析其他属性（例如 expires、path、domain 等）
   attributes.forEach((attr) => {
@@ -103,6 +104,14 @@ function parseCookieString(cookieStr: string): CookieRecord {
           cookieObj.expires = val;
         }
         break;
+      case "max-age": {
+        const seconds = Number(val);
+        if (Number.isFinite(seconds)) {
+          maxAge = Math.trunc(seconds);
+          cookieObj.maxAge = maxAge;
+        }
+        break;
+      }
       case "secure":
         cookieObj.secure = true;
         break;
@@ -115,6 +124,14 @@ function parseCookieString(cookieStr: string): CookieRecord {
     }
   });
 
+  // Max-Age takes precedence over Expires regardless of attribute order.
+  if (maxAge !== undefined) {
+    cookieObj.expires =
+      maxAge <= 0
+        ? new Date(0).toUTCString()
+        : new Date(Date.now() + maxAge * 1_000).toUTCString();
+  }
+
   return cookieObj;
 }
 
@@ -123,17 +140,44 @@ function parseSetCookieHeader(setCookieHeader: string): CookieRecord[] {
   return cookieStrings.map(parseCookieString);
 }
 
-function normalizeCookie(cookie: CookieRecord, url: string): CookieRecord {
-  // 对齐浏览器/服务端常见默认值，尽量模拟普通 Cookie 行为。
+function domainMatches(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
+function defaultCookiePath(pathname: string): string {
+  if (!pathname.startsWith("/") || pathname === "/") return "/";
+  const lastSlash = pathname.lastIndexOf("/");
+  return lastSlash <= 0 ? "/" : pathname.slice(0, lastSlash);
+}
+
+function normalizeCookie(
+  cookie: CookieRecord,
+  url: string,
+): CookieRecord | null {
   const target = new UrlParse(url);
+  const hostname = target.hostname.toLowerCase();
+  const suppliedDomain = cookie.domain?.trim();
+  const domain = (suppliedDomain || hostname).toLowerCase().replace(/^\.+/, "");
+  if (!hostname || !domain || !domainMatches(hostname, domain)) return null;
+
+  const hostOnly = cookie.hostOnly ?? !suppliedDomain;
+  let expires = cookie.expires || null;
+  if (cookie.maxAge != null && Number.isFinite(cookie.maxAge)) {
+    expires =
+      cookie.maxAge <= 0
+        ? new Date(0).toUTCString()
+        : new Date(Date.now() + cookie.maxAge * 1_000).toUTCString();
+  }
   return {
     name: cookie.name,
     value: cookie.value,
-    domain: (cookie.domain || target.hostname).toLowerCase().replace(/^\./, ""),
-    path: cookie.path || "/",
-    expires: cookie.expires || null,
+    domain,
+    path: cookie.path || defaultCookiePath(target.pathname || "/"),
+    expires,
     secure: Boolean(cookie.secure),
     httpOnly: Boolean(cookie.httpOnly),
+    hostOnly,
+    maxAge: cookie.maxAge ?? null,
   };
 }
 
@@ -143,9 +187,10 @@ function cookieMatches(cookie: CookieRecord, url: string): boolean {
   const hostname = target.hostname.toLowerCase();
   const pathname = target.pathname || "/";
 
+  const domain = cookie.domain ?? "";
   if (
-    hostname !== cookie.domain &&
-    !hostname.endsWith(`.${cookie.domain ?? ""}`)
+    (cookie.hostOnly && hostname !== domain) ||
+    (!cookie.hostOnly && !domainMatches(hostname, domain))
   ) {
     return false;
   }
@@ -197,7 +242,9 @@ function isSameCookieValue(left: CookieRecord, right: CookieRecord): boolean {
     left.value === right.value &&
     (left.expires ?? null) === (right.expires ?? null) &&
     Boolean(left.secure) === Boolean(right.secure) &&
-    Boolean(left.httpOnly) === Boolean(right.httpOnly)
+    Boolean(left.httpOnly) === Boolean(right.httpOnly) &&
+    Boolean(left.hostOnly) === Boolean(right.hostOnly) &&
+    (left.maxAge ?? null) === (right.maxAge ?? null)
   );
 }
 
@@ -211,7 +258,7 @@ export class BrowserCookieJar {
   }
   private loadCookies(): CookieRecord[] {
     const rows = this.database.query(
-      `SELECT name, value, domain, path, expires, secure, httpOnly FROM cookiejar`,
+      `SELECT name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge FROM cookiejar`,
     ) as Array<{
       name: string;
       value: string;
@@ -220,6 +267,8 @@ export class BrowserCookieJar {
       expires: string | null;
       secure: number;
       httpOnly: number;
+      hostOnly: number;
+      maxAge: number | null;
     }>;
     return rows.map((row) => ({
       name: row.name,
@@ -229,6 +278,8 @@ export class BrowserCookieJar {
       expires: row.expires,
       secure: Boolean(row.secure),
       httpOnly: Boolean(row.httpOnly),
+      hostOnly: Boolean(row.hostOnly),
+      maxAge: row.maxAge,
     }));
   }
 
@@ -252,7 +303,7 @@ export class BrowserCookieJar {
     }
     for (const cookie of upserts) {
       statements.push({
-        sql: `INSERT OR REPLACE INTO cookiejar (name, value, domain, path, expires, secure, httpOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO cookiejar (name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           cookie.name,
           cookie.value,
@@ -261,6 +312,8 @@ export class BrowserCookieJar {
           cookie.expires ?? null,
           cookie.secure ? 1 : 0,
           cookie.httpOnly ? 1 : 0,
+          cookie.hostOnly ? 1 : 0,
+          cookie.maxAge ?? null,
         ],
       });
     }
@@ -283,7 +336,16 @@ export class BrowserCookieJar {
 
   getCookies(url: string): CookieRecord[] {
     this.pruneExpired();
-    return this._cookies.filter((cookie) => cookieMatches(cookie, url));
+    return this._cookies
+      .filter((cookie) => cookieMatches(cookie, url))
+      .sort(
+        (left, right) => (right.path ?? "/").length - (left.path ?? "/").length,
+      )
+      .map((cookie) => ({
+        ...cookie,
+        "max-age": cookie.maxAge ?? null,
+        session: cookie.expires == null,
+      }));
   }
 
   getCookieHeader(url: string): string {
@@ -297,6 +359,7 @@ export class BrowserCookieJar {
     const deletions = new Map<string, CookieRecord>();
     for (const cookie of cookies) {
       const normalized = normalizeCookie(cookie, url);
+      if (!normalized) continue;
       const key = getCookieKey(normalized);
       const currentIndex = this._cookies.findIndex((current) =>
         isSameCookieKey(current, normalized),
@@ -331,9 +394,11 @@ export class BrowserCookieJar {
     const target = new UrlParse(url);
     const deleted: CookieRecord[] = [];
     this._cookies = this._cookies.filter((cookie) => {
-      const shouldDelete =
-        target.hostname === cookie.domain ||
-        target.hostname.endsWith(`.${cookie.domain ?? ""}`);
+      const hostname = target.hostname.toLowerCase();
+      const domain = cookie.domain ?? "";
+      const shouldDelete = cookie.hostOnly
+        ? hostname === domain
+        : domainMatches(hostname, domain);
       if (shouldDelete) {
         deleted.push(cookie);
       }

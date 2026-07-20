@@ -35,7 +35,7 @@ describe("Venera config runtime", () => {
 class AsyncSource extends ComicSource {
   name = "Async";
   key = "async_runtime_test_source";
-  version = "1";
+  version = "1.0.0";
   async init() {
     await new Promise(resolve => setTimeout(resolve, 5));
     this.saveData("ready", true);
@@ -63,7 +63,7 @@ class AsyncSource extends ComicSource {
 class TestSource extends ComicSource {
   name = "Test";
   key = "runtime_test_source";
-  version = "1";
+  version = "1.0.0";
   translation = { zh_CN: { hello: "你好" }, en: { hello: "Hello" } };
   settings = { mode: { title: "Mode", type: "select", default: "default", options: [] } };
   init() { this.saveData("initialized", true); }
@@ -103,5 +103,106 @@ class TestSource extends ComicSource {
       5,
     );
     expect(globals.randomInt(2, 3)).toBe(2);
+    expect(globals.randomInt()).toBe(0);
+    expect(globals.randomDouble()).toBeGreaterThanOrEqual(0);
+    expect(globals.randomDouble()).toBeLessThan(1);
+    const uuid = globals.createUuid();
+    expect(uuid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-1[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("normalizes locale to Venera's language_COUNTRY form", () => {
+    const previous = configManager.locale;
+    try {
+      configManager.locale = "zh-CN";
+      expect(configManager.locale).toBe("zh_CN");
+      configManager.locale = "zh-Hant";
+      expect(configManager.locale).toBe("zh_TW");
+      configManager.locale = "en_US";
+      expect(configManager.locale).toBe("en_US");
+    } finally {
+      configManager.locale = previous;
+    }
+  });
+
+  it("validates source metadata before registration", () => {
+    const globals = createVeneraRuntime();
+    const sourceCode = (fields: string, className = "ValidationSource") => `
+class ${className} extends ComicSource {
+  ${fields}
+}
+`;
+
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode('key = "valid_key"; version = "1.0.0";'),
+        globals,
+        false,
+      ),
+    ).toThrow("name is required");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode('name = "Test"; version = "1.0.0";'),
+        globals,
+        false,
+      ),
+    ).toThrow("key is required");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode('name = "Test"; key = "valid_key";'),
+        globals,
+        false,
+      ),
+    ).toThrow("version is required");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode('name = "Test"; key = "invalid-key"; version = "1.0.0";'),
+        globals,
+        false,
+      ),
+    ).toThrow("key invalid-key is invalid");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode('name = "Test"; key = "valid_key"; version = "1";'),
+        globals,
+        false,
+      ),
+    ).toThrow("version must be a valid semantic version");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode(
+          'name = "Test"; key = "valid_key"; version = "1.0.0"; minAppVersion = "invalid";',
+        ),
+        globals,
+        false,
+      ),
+    ).toThrow("minAppVersion must be a valid semantic version");
+    expect(() =>
+      loadVeneraConfigBySourceCode(
+        sourceCode(
+          'name = "Test"; key = "valid_key"; version = "1.0.0"; minAppVersion = "9.0.0";',
+        ),
+        globals,
+        false,
+      ),
+    ).toThrow("minAppVersion 9.0.0 is required");
+    expect(globals.ComicSource.sources.valid_key).toBeUndefined();
+
+    const first = loadVeneraConfigBySourceCode(
+      sourceCode('name = "First"; key = "duplicate_key"; version = "1.0.0";'),
+      globals,
+      false,
+    );
+    const second = loadVeneraConfigBySourceCode(
+      sourceCode(
+        'name = "Second"; key = "duplicate_key"; version = "1.0.1";',
+        "ReplacementSource",
+      ),
+      globals,
+      false,
+    );
+    expect(first.name).toBe("First");
+    expect(globals.ComicSource.sources.duplicate_key).toBe(second);
   });
 });

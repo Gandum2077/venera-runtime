@@ -22,6 +22,8 @@ const CREATE_TABLE_STATEMENTS = [
     expires TEXT,
     secure INTEGER NOT NULL DEFAULT 0,
     httpOnly INTEGER NOT NULL DEFAULT 0,
+    hostOnly INTEGER NOT NULL DEFAULT 0,
+    maxAge INTEGER,
     PRIMARY KEY (name, domain, path)
   )`,
   `CREATE TABLE IF NOT EXISTS venera_source_data (
@@ -42,6 +44,21 @@ const CREATE_TABLE_STATEMENTS = [
 
 function initializeDatabase(database: RuntimeDatabase): void {
   database.transaction(CREATE_TABLE_STATEMENTS.map((sql) => ({ sql })));
+  const cookieColumns = new Set(
+    database
+      .query("PRAGMA table_info(cookiejar)")
+      .map((column) => String(column.name)),
+  );
+  if (!cookieColumns.has("hostOnly")) {
+    // Existing databases cannot reveal whether an old row was host-only, so
+    // default to the previous domain-cookie behavior for those rows.
+    database.update(
+      "ALTER TABLE cookiejar ADD COLUMN hostOnly INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+  if (!cookieColumns.has("maxAge")) {
+    database.update("ALTER TABLE cookiejar ADD COLUMN maxAge INTEGER");
+  }
 }
 
 /** 初始化本项目负责的数据表；配置文件本身不由本项目管理。 */

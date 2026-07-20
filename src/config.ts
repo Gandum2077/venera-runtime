@@ -1,5 +1,31 @@
 import { dbManager } from "./database";
 
+function systemLocale(): string {
+  return new Intl.DateTimeFormat().resolvedOptions().locale;
+}
+
+/** Normalize BCP 47 locale tags to Venera's `language_COUNTRY` format. */
+export function normalizeVeneraLocale(value: string): string {
+  const input = value.trim().replaceAll("_", "-");
+  if (!input) return normalizeVeneraLocale(systemLocale());
+
+  try {
+    const locale = new Intl.Locale(input);
+    const language = locale.language.toLowerCase();
+    let region = locale.region?.toUpperCase();
+    if (!region && language === "zh") {
+      if (locale.script?.toLowerCase() === "hant") region = "TW";
+      if (locale.script?.toLowerCase() === "hans") region = "CN";
+    }
+    return region ? `${language}_${region}` : language;
+  } catch {
+    const [language, region] = input.split("-");
+    return region
+      ? `${language!.toLowerCase()}_${region.toUpperCase()}`
+      : language!.toLowerCase();
+  }
+}
+
 function isBinaryData(value: unknown): value is ArrayBuffer | ArrayBufferView {
   return value instanceof ArrayBuffer || ArrayBuffer.isView(value);
 }
@@ -11,8 +37,7 @@ class ConfigManager {
   constructor() {
     this._veneraData = this._queryVeneraData();
     this._veneraSettings = this._queryVeneraSettings();
-    this._locale =
-      this._queryLocale() || new Intl.DateTimeFormat().resolvedOptions().locale;
+    this._locale = normalizeVeneraLocale(this._queryLocale() || systemLocale());
   }
 
   _queryLocale(): string | null {
@@ -26,11 +51,12 @@ class ConfigManager {
   }
 
   set locale(value: string) {
+    const normalized = normalizeVeneraLocale(value || systemLocale());
     dbManager.update(
       `INSERT OR REPLACE INTO locale (key, value) VALUES ('locale', ?)`,
-      [value],
+      [normalized],
     );
-    this._locale = value || new Intl.DateTimeFormat().resolvedOptions().locale;
+    this._locale = normalized;
   }
 
   private _queryVeneraData(): Map<string, Map<string, unknown>> {

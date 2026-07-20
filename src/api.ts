@@ -101,7 +101,7 @@ export interface RuntimeImageApi {
 
 export interface CliIo {
   write(message: string): void;
-  read(prompt: string): Promise<string | null>;
+  read(prompt: string, signal?: AbortSignal): Promise<string | null>;
 }
 
 function detectEnvironment(): RuntimeEnvironment {
@@ -600,9 +600,52 @@ export function httpRequest(
   return isNode ? nodeHttpRequest(request) : jsBoxHttpRequest(request);
 }
 
+const UUID_GREGORIAN_OFFSET_MS = 12_219_292_800_000n;
+const uuidNode = Uint8Array.from({ length: 6 }, () =>
+  Math.floor(Math.random() * 256),
+);
+uuidNode[0] = uuidNode[0]! | 0x01;
+let uuidClockSequence = Math.floor(Math.random() * 0x4000);
+let lastUuidTimestampMs = -1;
+let uuidTicksWithinMs = 0;
+
+function uuidHex(value: number | bigint, width: number): string {
+  return value.toString(16).padStart(width, "0");
+}
+
+/** Create the time-based UUID v1 exposed by Venera's configuration runtime. */
 export function createUuid(): string {
-  if (isJsBox) return $text.uuid;
-  return requireNode<typeof import("node:crypto")>("node:crypto").randomUUID();
+  const wallClockMs = Date.now();
+  let timestampMs = wallClockMs;
+
+  if (wallClockMs > lastUuidTimestampMs) {
+    uuidTicksWithinMs = 0;
+  } else if (uuidTicksWithinMs < 9_999) {
+    timestampMs = lastUuidTimestampMs;
+    uuidTicksWithinMs += 1;
+  } else {
+    timestampMs = lastUuidTimestampMs + 1;
+    uuidTicksWithinMs = 0;
+  }
+  if (wallClockMs < lastUuidTimestampMs) {
+    uuidClockSequence = (uuidClockSequence + 1) & 0x3fff;
+  }
+  lastUuidTimestampMs = timestampMs;
+
+  const timestamp =
+    (BigInt(timestampMs) + UUID_GREGORIAN_OFFSET_MS) * 10_000n +
+    BigInt(uuidTicksWithinMs);
+  const timeLow = timestamp & 0xffffffffn;
+  const timeMid = (timestamp >> 32n) & 0xffffn;
+  const timeHighAndVersion = ((timestamp >> 48n) & 0x0fffn) | 0x1000n;
+  const clockSequenceHigh = ((uuidClockSequence >> 8) & 0x3f) | 0x80;
+  const clockSequenceLow = uuidClockSequence & 0xff;
+  const node = Array.from(uuidNode, (byte) => uuidHex(byte, 2)).join("");
+
+  return `${uuidHex(timeLow, 8)}-${uuidHex(timeMid, 4)}-${uuidHex(
+    timeHighAndVersion,
+    4,
+  )}-${uuidHex(clockSequenceHigh, 2)}${uuidHex(clockSequenceLow, 2)}-${node}`;
 }
 
 export async function setClipboardText(text: string): Promise<void> {
@@ -628,7 +671,7 @@ const defaultCliIo: CliIo = {
   write(message) {
     console.log(message);
   },
-  async read(prompt) {
+  async read(prompt, signal) {
     const readline = requireNode<typeof import("node:readline/promises")>(
       "node:readline/promises",
     );
@@ -638,7 +681,9 @@ const defaultCliIo: CliIo = {
       output: io.stdout,
     });
     try {
-      return await session.question(prompt);
+      return signal
+        ? await session.question(prompt, { signal })
+        : await session.question(prompt);
     } finally {
       session.close();
     }
@@ -657,6 +702,7 @@ export function setCliIo(value: CliIo): () => void {
 
 let loadingId = 0;
 const loadingCancelCallbacks = new Map<number, (() => void) | null>();
+const loadingCancelControllers = new Map<number, AbortController>();
 
 function showJsBoxLoading(id: number, onCancel?: (() => void) | null): void {
   const viewId = `loading-mask-${id}`;
@@ -917,14 +963,31 @@ export const runtimeUi: RuntimeUiApi = {
   async showDialog(title, content, actions) {
     if (isNode) {
       cliIo.write(`[Dialog] ${title}\n${content}`);
-      if (actions.length > 0) {
+      if (actions.length === 0) {
+        await cliIo.read("Press Enter to close: ");
+        return;
+      }
+      cliIo.write(
+        actions
+          .map((action, index) => `${index + 1}. ${action.text}`)
+          .join("\n"),
+      );
+      while (true) {
+        const value = await cliIo.read("Choice [1]: ");
+        if (value === null) return;
+        const selected = value.trim() === "" ? 0 : Number(value) - 1;
+        if (
+          Number.isInteger(selected) &&
+          selected >= 0 &&
+          selected < actions.length
+        ) {
+          await actions[selected]!.callback();
+          return;
+        }
         cliIo.write(
-          actions
-            .map((action, index) => `${index + 1}. ${action.text}`)
-            .join("\n"),
+          `[Invalid choice] Enter a number from 1 to ${actions.length}`,
         );
       }
-      return;
     }
     await new Promise<void>((resolve) => {
       $ui.alert({
@@ -961,12 +1024,37 @@ export const runtimeUi: RuntimeUiApi = {
       showJsBoxLoading(id, onCancel);
     } else {
       cliIo.write(`[Loading #${id}] started${onCancel ? " (cancelable)" : ""}`);
+      if (onCancel) {
+        const controller = new AbortController();
+        loadingCancelControllers.set(id, controller);
+        void cliIo
+          .read(`[Loading #${id}] Press Enter to cancel: `, controller.signal)
+          .then((value) => {
+            if (value === null || !loadingCancelCallbacks.has(id)) return;
+            loadingCancelCallbacks.delete(id);
+            loadingCancelControllers.delete(id);
+            cliIo.write(`[Loading #${id}] canceled`);
+            onCancel();
+          })
+          .catch((error: unknown) => {
+            if (
+              !controller.signal.aborted &&
+              (!(error instanceof Error) || error.name !== "AbortError")
+            ) {
+              cliIo.write(
+                `[Loading #${id}] cancel input failed: ${String(error)}`,
+              );
+            }
+          });
+      }
     }
     return id;
   },
   cancelLoading(id) {
     if (!loadingCancelCallbacks.has(id)) return;
     loadingCancelCallbacks.delete(id);
+    loadingCancelControllers.get(id)?.abort();
+    loadingCancelControllers.delete(id);
     if (isJsBox) {
       $ui.get(`loading-mask-${id}`)?.remove();
     } else {
@@ -1008,16 +1096,24 @@ export const runtimeUi: RuntimeUiApi = {
     cliIo.write(
       `[Select] ${title}\n${options.map((option, index) => `${index + 1}. ${option}`).join("\n")}`,
     );
-    const value = await cliIo.read(
-      `Choice${initialIndex == null ? "" : ` [${initialIndex + 1}]`}: `,
-    );
-    if (value === null || value.trim() === "") return initialIndex ?? null;
-    const selected = Number(value) - 1;
-    return Number.isInteger(selected) &&
-      selected >= 0 &&
-      selected < options.length
-      ? selected
-      : null;
+    while (true) {
+      const value = await cliIo.read(
+        `Choice${initialIndex == null ? "" : ` [${initialIndex + 1}]`}: `,
+      );
+      if (value === null) return null;
+      if (value.trim() === "") return initialIndex ?? null;
+      const selected = Number(value) - 1;
+      if (
+        Number.isInteger(selected) &&
+        selected >= 0 &&
+        selected < options.length
+      ) {
+        return selected;
+      }
+      cliIo.write(
+        `[Invalid choice] Enter a number from 1 to ${options.length}`,
+      );
+    }
   },
 };
 

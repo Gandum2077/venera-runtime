@@ -8,7 +8,7 @@ export const UI: UIApi = {
   },
 
   showDialog(title, content, actions) {
-    void runtimeUi.showDialog(title, content, actions);
+    return runtimeUi.showDialog(title, content, actions);
   },
 
   launchUrl(url) {

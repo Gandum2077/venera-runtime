@@ -3,12 +3,110 @@ import type { RuntimeGlobals, VeneraConfigSource } from "./venera-types";
 /** Venera 1.6.3 在配置解析完成后延迟启动 `source.init()`。 */
 const VENERA_INIT_DELAY_MS = 50;
 
+interface SemanticVersion {
+  core: [number, number, number];
+  prerelease: Array<number | string>;
+}
+
+function parseSemanticVersion(value: string, field: string): SemanticVersion {
+  const match = value.match(
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/,
+  );
+  if (!match) {
+    throw new Error(`${field} must be a valid semantic version: ${value}`);
+  }
+  return {
+    core: [Number(match[1]), Number(match[2]), Number(match[3])],
+    prerelease: match[4]
+      ? match[4]
+          .split(".")
+          .map((part) => (/^\d+$/.test(part) ? Number(part) : part))
+      : [],
+  };
+}
+
+function compareSemanticVersions(
+  left: SemanticVersion,
+  right: SemanticVersion,
+): number {
+  for (let index = 0; index < left.core.length; index += 1) {
+    if (left.core[index]! !== right.core[index]!) {
+      return left.core[index]! > right.core[index]! ? 1 : -1;
+    }
+  }
+  if (left.prerelease.length === 0 || right.prerelease.length === 0) {
+    return left.prerelease.length === right.prerelease.length
+      ? 0
+      : left.prerelease.length === 0
+        ? 1
+        : -1;
+  }
+  const length = Math.max(left.prerelease.length, right.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = left.prerelease[index];
+    const rightPart = right.prerelease[index];
+    if (leftPart === undefined || rightPart === undefined) {
+      return leftPart === rightPart ? 0 : leftPart === undefined ? -1 : 1;
+    }
+    if (leftPart === rightPart) continue;
+    if (typeof leftPart === "number" && typeof rightPart === "number") {
+      return leftPart > rightPart ? 1 : -1;
+    }
+    if (typeof leftPart === "number") return -1;
+    if (typeof rightPart === "number") return 1;
+    return leftPart > rightPart ? 1 : -1;
+  }
+  return 0;
+}
+
+function validateRequiredString(
+  source: VeneraConfigSource,
+  field: "name" | "key" | "version",
+): string {
+  const value = source[field];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${field} is required`);
+  }
+  return value;
+}
+
+/** Validate the metadata that Venera checks before accepting a source. */
+export function validateVeneraConfig(
+  source: VeneraConfigSource,
+  appVersion: string,
+): void {
+  validateRequiredString(source, "name");
+  const key = validateRequiredString(source, "key");
+  if (!/^[A-Za-z0-9_]+$/.test(key)) {
+    throw new Error(`key ${key} is invalid`);
+  }
+
+  const version = validateRequiredString(source, "version");
+  parseSemanticVersion(version, "version");
+
+  if (source.minAppVersion !== undefined && source.minAppVersion !== null) {
+    if (
+      typeof source.minAppVersion !== "string" ||
+      source.minAppVersion.trim() === ""
+    ) {
+      throw new Error("minAppVersion must be a valid semantic version");
+    }
+    const minimum = parseSemanticVersion(source.minAppVersion, "minAppVersion");
+    const current = parseSemanticVersion(appVersion, "APP.version");
+    if (compareSemanticVersions(minimum, current) > 0) {
+      throw new Error(`minAppVersion ${source.minAppVersion} is required`);
+    }
+  }
+}
+
 export function loadVeneraConfigBySourceCode(
   sourceCode: string,
   globals: RuntimeGlobals,
   runInit = true,
 ): VeneraConfigSource {
   const source = evaluateVeneraConfig(sourceCode, globals);
+  validateVeneraConfig(source, globals.APP.version);
+  globals.ComicSource.sources[source.key] = source;
   if (runInit && source.init) {
     setTimeout(() => {
       void Promise.resolve(source.init?.call(source)).catch(
@@ -33,6 +131,8 @@ export async function loadVeneraConfigBySourceCodeAsync(
   runInit = true,
 ): Promise<VeneraConfigSource> {
   const source = evaluateVeneraConfig(sourceCode, globals);
+  validateVeneraConfig(source, globals.APP.version);
+  globals.ComicSource.sources[source.key] = source;
   if (runInit && source.init) {
     await Promise.resolve(source.init.call(source));
   }
@@ -65,7 +165,6 @@ function evaluateVeneraConfig(
     `
 ${sourceCode}
 const __instance = new ${className}();
-ComicSource.sources[__instance.key] = __instance;
 return __instance;
 `,
   ) as (...args: unknown[]) => VeneraConfigSource;

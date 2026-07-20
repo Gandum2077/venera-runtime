@@ -112,7 +112,7 @@ describe("shared API contract", () => {
 
   it("renders Node UI operations as a CLI transcript", async () => {
     const output: string[] = [];
-    const input = ["bad", "accepted", "2"];
+    const input = ["bad", "accepted", "invalid", "2"];
     const restore = setCliIo({
       write(message) {
         output.push(message);
@@ -132,7 +132,44 @@ describe("shared API contract", () => {
       expect(selected).toBe(1);
       expect(output.join("\n")).toContain("[Message] hello");
       expect(output.join("\n")).toContain("[Validation error] retry");
+      expect(output.join("\n")).toContain("[Invalid choice]");
       expect(output.join("\n")).toContain("[Open URL] https://example.com");
+    } finally {
+      restore();
+    }
+  });
+
+  it("executes dialog actions and supports user-cancelable CLI loading", async () => {
+    const output: string[] = [];
+    const input = ["invalid", "2", ""];
+    let selected = "";
+    let canceled = false;
+    const restore = setCliIo({
+      write(message) {
+        output.push(message);
+      },
+      async read() {
+        return input.shift() ?? null;
+      },
+    });
+    try {
+      await runtimeUi.showDialog("action", "choose", [
+        {
+          text: "first",
+          callback: () => {
+            selected = "first";
+          },
+        },
+        { text: "second", callback: async () => void (selected = "second") },
+      ]);
+      expect(selected).toBe("second");
+
+      runtimeUi.showLoading(() => {
+        canceled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(canceled).toBe(true);
+      expect(output.join("\n")).toContain("canceled");
     } finally {
       restore();
     }
