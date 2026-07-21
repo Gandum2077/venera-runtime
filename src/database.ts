@@ -6,15 +6,12 @@ import {
 } from "./api";
 import { VENERA_CONFIG_DATABASE_PATH } from "./constants";
 
-// 当前数据库版本，写在数据库文件中。出现不兼容更新时再提升版本并提供迁移。
-const CURRENT_USER_VERSION = 0;
-
 const CREATE_TABLE_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS locale (
+  `CREATE TABLE IF NOT EXISTS venera_runtime_locale (
     key TEXT NOT NULL PRIMARY KEY,
     value TEXT NOT NULL
   )`,
-  `CREATE TABLE IF NOT EXISTS cookiejar (
+  `CREATE TABLE IF NOT EXISTS venera_runtime_cookiejar (
     name TEXT NOT NULL,
     value TEXT NOT NULL,
     domain TEXT NOT NULL,
@@ -42,22 +39,24 @@ const CREATE_TABLE_STATEMENTS = [
   )`,
 ];
 
-function initializeDatabase(database: RuntimeDatabase): void {
+function initializeSchema(database: RuntimeDatabase): void {
   database.transaction(CREATE_TABLE_STATEMENTS.map((sql) => ({ sql })));
   const cookieColumns = new Set(
     database
-      .query("PRAGMA table_info(cookiejar)")
+      .query("PRAGMA table_info(venera_runtime_cookiejar)")
       .map((column) => String(column.name)),
   );
   if (!cookieColumns.has("hostOnly")) {
     // Existing databases cannot reveal whether an old row was host-only, so
     // default to the previous domain-cookie behavior for those rows.
     database.update(
-      "ALTER TABLE cookiejar ADD COLUMN hostOnly INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE venera_runtime_cookiejar ADD COLUMN hostOnly INTEGER NOT NULL DEFAULT 0",
     );
   }
   if (!cookieColumns.has("maxAge")) {
-    database.update("ALTER TABLE cookiejar ADD COLUMN maxAge INTEGER");
+    database.update(
+      "ALTER TABLE venera_runtime_cookiejar ADD COLUMN maxAge INTEGER",
+    );
   }
 }
 
@@ -65,50 +64,87 @@ function initializeDatabase(database: RuntimeDatabase): void {
 export function createDB(path = VENERA_CONFIG_DATABASE_PATH): void {
   const database = openDatabase(path);
   try {
-    initializeDatabase(database);
+    initializeSchema(database);
   } finally {
     database.close();
   }
 }
 
+export interface DBManagerOptions {
+  /** 首次执行数据库操作时再打开连接。 */
+  lazy?: boolean;
+}
+
 export class DBManager {
-  private readonly database: RuntimeDatabase;
+  private database: RuntimeDatabase | null = null;
+  private closed = false;
+  private path: string;
 
-  constructor(path = VENERA_CONFIG_DATABASE_PATH) {
-    this.database = openDatabase(path);
-    initializeDatabase(this.database);
-    this.checkDBUpdate();
-  }
-
-  close(): void {
-    this.database.close();
-  }
-
-  private checkDBUpdate(): void {
-    const userVersion =
-      (this.query("PRAGMA user_version;") as Array<{ user_version: number }>)[0]
-        ?.user_version ?? 0;
-    if (userVersion !== CURRENT_USER_VERSION) {
-      throw new Error(
-        `未找到从数据库版本 ${userVersion} 到 ${CURRENT_USER_VERSION} 的升级方案`,
-      );
+  constructor(
+    path = VENERA_CONFIG_DATABASE_PATH,
+    options: DBManagerOptions = {},
+  ) {
+    this.path = path;
+    if (!options.lazy) {
+      this.initialize();
     }
   }
 
+  private open(): RuntimeDatabase {
+    const database = openDatabase(this.path);
+    try {
+      initializeSchema(database);
+      return database;
+    } catch (error) {
+      database.close();
+      throw error;
+    }
+  }
+
+  private getDatabase(): RuntimeDatabase {
+    this.initialize();
+    return this.database!;
+  }
+
+  /** 主动打开连接并初始化本项目负责的数据表。 */
+  initialize(path = this.path): this {
+    if (this.closed) {
+      throw new Error("Database manager is closed");
+    }
+    if (this.database) {
+      if (path !== this.path) {
+        throw new Error(
+          `Database is already initialized at ${this.path}; cannot switch to ${path}`,
+        );
+      }
+      return this;
+    }
+    this.path = path;
+    this.database = this.open();
+    return this;
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.database?.close();
+    this.database = null;
+    this.closed = true;
+  }
+
   query(sql: string, args?: DatabasePrimitive[]): Record<string, unknown>[] {
-    return this.database.query(sql, args);
+    return this.getDatabase().query(sql, args);
   }
 
   update(sql: string, args?: DatabasePrimitive[]): void {
-    this.database.update(sql, args);
+    this.getDatabase().update(sql, args);
   }
 
   batchUpdate(sql: string, manyArgs: DatabasePrimitive[][]): void {
-    this.database.transaction(manyArgs.map((args) => ({ sql, args })));
+    this.getDatabase().transaction(manyArgs.map((args) => ({ sql, args })));
   }
 
   transactionUpdate(statements: DatabaseStatement[]): void {
-    this.database.transaction(statements);
+    this.getDatabase().transaction(statements);
   }
 
   batchInsert(
@@ -123,9 +159,22 @@ export class DBManager {
       const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES ${batch
         .map(() => columnPlaceholders)
         .join(",")}`;
-      this.database.update(sql, batch.flat());
+      this.getDatabase().update(sql, batch.flat());
     }
   }
 }
 
-export const dbManager = new DBManager();
+/** 默认共享数据库；导入模块时不打开连接，首次操作时才初始化。 */
+export const dbManager = new DBManager(VENERA_CONFIG_DATABASE_PATH, {
+  lazy: true,
+});
+
+/**
+ * 主动初始化默认共享数据库，并返回上级应用与运行时共同使用的管理器。
+ * 必须在任何配置或 Cookie 持久化操作之前指定自定义路径。
+ */
+export function initializeDatabase(
+  path = VENERA_CONFIG_DATABASE_PATH,
+): DBManager {
+  return dbManager.initialize(path);
+}

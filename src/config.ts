@@ -31,29 +31,35 @@ function isBinaryData(value: unknown): value is ArrayBuffer | ArrayBufferView {
 }
 
 class ConfigManager {
-  private _locale: string;
-  private _veneraData: Map<string, Map<string, unknown>>;
-  private _veneraSettings: Map<string, Map<string, unknown>>;
-  constructor() {
+  private _locale!: string;
+  private _veneraData!: Map<string, Map<string, unknown>>;
+  private _veneraSettings!: Map<string, Map<string, unknown>>;
+  private initialized = false;
+
+  private ensureInitialized(): void {
+    if (this.initialized) return;
     this._veneraData = this._queryVeneraData();
     this._veneraSettings = this._queryVeneraSettings();
     this._locale = normalizeVeneraLocale(this._queryLocale() || systemLocale());
+    this.initialized = true;
   }
 
   _queryLocale(): string | null {
-    const sql = `SELECT value FROM locale WHERE key = 'locale' LIMIT 1`;
+    const sql = `SELECT value FROM venera_runtime_locale WHERE key = 'locale' LIMIT 1`;
     const rows = dbManager.query(sql) as Array<{ value: string }>;
     return rows[0]?.value ?? null;
   }
 
   get locale() {
+    this.ensureInitialized();
     return this._locale;
   }
 
   set locale(value: string) {
+    this.ensureInitialized();
     const normalized = normalizeVeneraLocale(value || systemLocale());
     dbManager.update(
-      `INSERT OR REPLACE INTO locale (key, value) VALUES ('locale', ?)`,
+      `INSERT OR REPLACE INTO venera_runtime_locale (key, value) VALUES ('locale', ?)`,
       [normalized],
     );
     this._locale = normalized;
@@ -111,6 +117,7 @@ class ConfigManager {
   }
 
   getData(sourceKey: string, key: string): unknown {
+    this.ensureInitialized();
     const configMap = this._veneraData.get(sourceKey);
     if (configMap?.has(key)) {
       return configMap.get(key);
@@ -119,6 +126,7 @@ class ConfigManager {
   }
 
   setData(sourceKey: string, key: string, value: unknown) {
+    this.ensureInitialized();
     if (isBinaryData(value)) {
       const configMap = this._veneraData.get(sourceKey);
       if (configMap) {
@@ -144,6 +152,7 @@ class ConfigManager {
   }
 
   deleteData(sourceKey: string, key: string) {
+    this.ensureInitialized();
     const configMap = this._veneraData.get(sourceKey);
     if (configMap) {
       configMap.delete(key);
@@ -158,6 +167,7 @@ class ConfigManager {
   }
 
   getSetting(sourceKey: string, key: string): unknown {
+    this.ensureInitialized();
     const configMap = this._veneraSettings.get(sourceKey);
     if (configMap) {
       return configMap.get(key);
@@ -166,6 +176,7 @@ class ConfigManager {
   }
 
   setSetting(sourceKey: string, key: string, value: unknown) {
+    this.ensureInitialized();
     if (!this._veneraSettings.has(sourceKey)) {
       this._veneraSettings.set(sourceKey, new Map());
     }

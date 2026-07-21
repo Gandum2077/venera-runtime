@@ -109,7 +109,7 @@ describe("BrowserCookieJar", () => {
     temporaryDirectories.push(directory);
     const path = join(directory, "database.db");
     const oldDatabase = openDatabase(path);
-    oldDatabase.update(`CREATE TABLE cookiejar (
+    oldDatabase.update(`CREATE TABLE venera_runtime_cookiejar (
       name TEXT NOT NULL,
       value TEXT NOT NULL,
       domain TEXT NOT NULL,
@@ -123,9 +123,9 @@ describe("BrowserCookieJar", () => {
 
     const manager = new DBManager(path);
     managers.push(manager);
-    const columns = manager.query("PRAGMA table_info(cookiejar)") as Array<{
-      name: string;
-    }>;
+    const columns = manager.query(
+      "PRAGMA table_info(venera_runtime_cookiejar)",
+    ) as Array<{ name: string }>;
     expect(columns.map((column) => column.name)).toEqual(
       expect.arrayContaining(["hostOnly", "maxAge"]),
     );

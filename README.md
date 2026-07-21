@@ -95,18 +95,41 @@ VENERA_RUNTIME_DATA_DIR=/absolute/path/to/consumer-data node app.js
 /absolute/path/to/consumer-data/assets/database.db
 ```
 
-包在首次导入时会打开数据库，因此 `VENERA_RUNTIME_DATA_DIR` 必须在 `require()` / `import` 之前设置。CommonJS 可以在代码中设置：
+仅导入包不会打开或创建数据库。默认数据库会在首次查询、持久化配置或处理 Cookie 时初始化，因此 `VENERA_RUNTIME_DATA_DIR` 只需在第一次数据库操作前设置。CommonJS 示例：
 
 ```js
 process.env.VENERA_RUNTIME_DATA_DIR = "/absolute/path/to/consumer-data";
 const runtime = require("venera-runtime");
 ```
 
-原生 ESM 如需在代码中设置，请使用动态导入：
+原生 ESM 可以在导入后、首次数据库操作前设置：
 
 ```js
+import { loadVeneraConfig } from "venera-runtime";
+
 process.env.VENERA_RUNTIME_DATA_DIR = "/absolute/path/to/consumer-data";
-const runtime = await import("venera-runtime");
+const source = loadVeneraConfig(sourceCode);
+```
+
+也可以不依赖 `process.env`，直接主动初始化默认共享数据库：
+
+```js
+import { initializeDatabase } from "venera-runtime";
+
+const database = initializeDatabase("/absolute/path/to/app.db");
+```
+
+上级应用可以通过具名导出的 `dbManager` 使用运行时创建的同一个跨平台数据库连接。应用自己的表应使用独立前缀，并且不要绕过运行时 API 直接修改运行时负责的表：
+
+```js
+import { dbManager } from "venera-runtime";
+
+dbManager.update(`
+  CREATE TABLE IF NOT EXISTS app_favorites (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL
+  )
+`);
 ```
 
 ## 最小可运行示例
@@ -320,7 +343,10 @@ npm install --save /absolute/path/to/venera-runtime
 然后在项目入口中导入，并交给现有 webpack 构建：
 
 ```ts
-import { loadVeneraConfig } from "venera-runtime";
+import { initializeDatabase, loadVeneraConfig } from "venera-runtime";
+
+// JSBox 不需要 process；在首次持久化操作前直接指定共享数据库路径。
+const database = initializeDatabase("assets/database.db");
 
 const sourceCode = $file.read("assets/config.js")?.string;
 if (!sourceCode) throw new Error("Failed to read config source");
@@ -340,8 +366,10 @@ $ui.alert(`${source.name} v${source.version}`);
 | `createVeneraRuntime`               | 手动创建注入给配置脚本的全局对象      |
 | `loadVeneraConfigBySourceCode`      | 使用指定 globals 加载，后台执行初始化 |
 | `loadVeneraConfigBySourceCodeAsync` | 特殊场景下加载并等待初始化完成        |
+| `initializeDatabase`                | 主动初始化并返回默认共享数据库管理器  |
 | `APP`                               | 固定的 Venera 1.6.3 / iOS 元数据      |
 | `Network`、`Convert`、`UI`          | Venera 对应能力的直接实现             |
+| `dbManager`                         | 与运行时共享的惰性数据库管理器        |
 | `configManager`                     | locale、源数据和设置的持久化管理器    |
 | `modifyImage`                       | 执行配置中的图片处理脚本              |
 

@@ -249,16 +249,21 @@ function isSameCookieValue(left: CookieRecord, right: CookieRecord): boolean {
 }
 
 export class BrowserCookieJar {
-  private _cookies: CookieRecord[];
+  private _cookies: CookieRecord[] | null = null;
   private readonly database: DBManager;
 
   constructor(database: DBManager = dbManager) {
     this.database = database;
-    this._cookies = this.loadCookies();
   }
+
+  private get cookies(): CookieRecord[] {
+    this._cookies ??= this.loadCookies();
+    return this._cookies;
+  }
+
   private loadCookies(): CookieRecord[] {
     const rows = this.database.query(
-      `SELECT name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge FROM cookiejar`,
+      `SELECT name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge FROM venera_runtime_cookiejar`,
     ) as Array<{
       name: string;
       value: string;
@@ -297,13 +302,13 @@ export class BrowserCookieJar {
     }[] = [];
     for (const cookie of deletions) {
       statements.push({
-        sql: `DELETE FROM cookiejar WHERE name = ? AND domain = ? AND path = ?`,
+        sql: `DELETE FROM venera_runtime_cookiejar WHERE name = ? AND domain = ? AND path = ?`,
         args: [cookie.name, cookie.domain ?? "", cookie.path ?? "/"],
       });
     }
     for (const cookie of upserts) {
       statements.push({
-        sql: `INSERT OR REPLACE INTO cookiejar (name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO venera_runtime_cookiejar (name, value, domain, path, expires, secure, httpOnly, hostOnly, maxAge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           cookie.name,
           cookie.value,
@@ -322,7 +327,7 @@ export class BrowserCookieJar {
 
   private pruneExpired(): void {
     const expired: CookieRecord[] = [];
-    this._cookies = this._cookies.filter((cookie) => {
+    this._cookies = this.cookies.filter((cookie) => {
       if (isCookieExpired(cookie)) {
         expired.push(cookie);
         return false;
@@ -336,7 +341,7 @@ export class BrowserCookieJar {
 
   getCookies(url: string): CookieRecord[] {
     this.pruneExpired();
-    return this._cookies
+    return this.cookies
       .filter((cookie) => cookieMatches(cookie, url))
       .sort(
         (left, right) => (right.path ?? "/").length - (left.path ?? "/").length,
@@ -355,20 +360,21 @@ export class BrowserCookieJar {
   }
 
   setCookies(url: string, cookies: CookieRecord[]): void {
+    const storedCookies = this.cookies;
     const upserts = new Map<string, CookieRecord>();
     const deletions = new Map<string, CookieRecord>();
     for (const cookie of cookies) {
       const normalized = normalizeCookie(cookie, url);
       if (!normalized) continue;
       const key = getCookieKey(normalized);
-      const currentIndex = this._cookies.findIndex((current) =>
+      const currentIndex = storedCookies.findIndex((current) =>
         isSameCookieKey(current, normalized),
       );
-      const current = currentIndex >= 0 ? this._cookies[currentIndex] : null;
+      const current = currentIndex >= 0 ? storedCookies[currentIndex] : null;
 
       if (isCookieExpired(normalized)) {
         if (currentIndex >= 0) {
-          this._cookies.splice(currentIndex, 1);
+          storedCookies.splice(currentIndex, 1);
           upserts.delete(key);
           deletions.set(key, current!);
         }
@@ -380,9 +386,9 @@ export class BrowserCookieJar {
       }
 
       if (currentIndex >= 0) {
-        this._cookies[currentIndex] = normalized;
+        storedCookies[currentIndex] = normalized;
       } else {
-        this._cookies.push(normalized);
+        storedCookies.push(normalized);
       }
       deletions.delete(key);
       upserts.set(key, normalized);
@@ -393,7 +399,7 @@ export class BrowserCookieJar {
   deleteCookies(url: string): void {
     const target = new UrlParse(url);
     const deleted: CookieRecord[] = [];
-    this._cookies = this._cookies.filter((cookie) => {
+    this._cookies = this.cookies.filter((cookie) => {
       const hostname = target.hostname.toLowerCase();
       const domain = cookie.domain ?? "";
       const shouldDelete = cookie.hostOnly
@@ -415,4 +421,5 @@ export class BrowserCookieJar {
   }
 }
 
+/** 默认 Cookie 容器；首次 Cookie 操作时才从数据库读取。 */
 export const cookieJar = new BrowserCookieJar();
