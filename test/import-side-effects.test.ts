@@ -12,6 +12,12 @@ afterEach(() => {
 });
 
 describe("package import", () => {
+  it("exports cookieJar from the package root", async () => {
+    const runtime = await import("../src/index");
+
+    expect(runtime.cookieJar.getCookieHeader).toBeTypeOf("function");
+  });
+
   it("exports modifyImage from the package root", async () => {
     const runtime = await import("../src/index");
 

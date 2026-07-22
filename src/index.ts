@@ -2,6 +2,7 @@ export * from "./api";
 export * from "./app";
 export * from "./config";
 export * from "./convert";
+export * from "./cookiejar";
 export * from "./database";
 export * from "./html-wrapper";
 export * from "./load-config";
