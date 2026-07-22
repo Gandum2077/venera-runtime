@@ -38,10 +38,14 @@ export interface RuntimeFileApi {
   exists(path: string): boolean;
   isDirectory(path: string): boolean;
   mkdir(path: string): boolean;
+  /** List the direct children of a directory, or return null when unavailable. */
+  list(path: string): string[] | null;
   readText(path: string): string | null;
   readBytes(path: string): ArrayBuffer | null;
   writeText(path: string, content: string): boolean;
   writeBytes(path: string, content: ArrayBuffer | ArrayBufferView): boolean;
+  /** Atomically rename a file when the host file system supports it. */
+  move(source: string, destination: string): boolean;
   delete(path: string): boolean;
 }
 
@@ -333,6 +337,7 @@ function jsBoxFileApi(): RuntimeFileApi {
     exists: (path) => $file.exists(path),
     isDirectory: (path) => $file.isDirectory(path),
     mkdir: (path) => $file.mkdir(path),
+    list: (path) => $file.list(path) ?? null,
     readText(path) {
       return $file.read(path)?.string ?? null;
     },
@@ -351,6 +356,8 @@ function jsBoxFileApi(): RuntimeFileApi {
         path,
       });
     },
+    move: (source, destination) =>
+      $file.move({ src: source, dst: destination }),
     delete: (path) => !$file.exists(path) || $file.delete(path),
   };
 }
@@ -374,6 +381,13 @@ function nodeFileApi(): RuntimeFileApi {
     mkdir(path) {
       fs.mkdirSync(resolveNodePath(path), { recursive: true });
       return true;
+    },
+    list(path) {
+      try {
+        return fs.readdirSync(resolveNodePath(path));
+      } catch {
+        return null;
+      }
     },
     readText(path) {
       try {
@@ -401,6 +415,15 @@ function nodeFileApi(): RuntimeFileApi {
         new Uint8Array(exactArrayBuffer(content)),
       );
       return true;
+    },
+    move(source, destination) {
+      try {
+        ensureParent(destination);
+        fs.renameSync(resolveNodePath(source), resolveNodePath(destination));
+        return true;
+      } catch {
+        return false;
+      }
     },
     delete(path) {
       const resolvedPath = resolveNodePath(path);

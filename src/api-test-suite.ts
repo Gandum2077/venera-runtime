@@ -127,6 +127,22 @@ function createTestCases(options: RuntimeTestOptions): RuntimeTestCase[] {
           stored !== null && bytesToHex(stored) === "00017f80ff",
           "Binary file differs",
         );
+        assert(
+          runtimeFiles.list(fileRoot)?.includes("bytes.bin") === true,
+          "File listing does not contain the binary file",
+        );
+        assert(
+          runtimeFiles.move(
+            `${fileRoot}/bytes.bin`,
+            `${fileRoot}/moved.bin`,
+          ),
+          "Failed to move binary file",
+        );
+        assert(
+          !runtimeFiles.exists(`${fileRoot}/bytes.bin`) &&
+            runtimeFiles.readBytes(`${fileRoot}/moved.bin`) !== null,
+          "Moved file state is invalid",
+        );
       },
     },
     {
