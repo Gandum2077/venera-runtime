@@ -24,6 +24,12 @@ describe("package import", () => {
     expect(runtime.modifyImage).toBeTypeOf("function");
   });
 
+  it("exports logger from the package root", async () => {
+    const runtime = await import("../src/index");
+
+    expect(runtime.logger.error).toBeTypeOf("function");
+  });
+
   it("does not open or create the default database until its first operation", async () => {
     const directory = mkdtempSync(join(tmpdir(), "venera-lazy-database-"));
     temporaryDirectories.push(directory);

@@ -132,6 +132,20 @@ dbManager.update(`
 `);
 ```
 
+## 日志
+
+包根入口具名导出共享 `logger`：
+
+```ts
+import { logger } from "venera-runtime";
+
+logger.error("Image task failed", error);
+```
+
+logger 在包首次导入时读取 `assets/debug`。文件内容可以是 `on`、`info`、`warn`、`warning` 或 `error`；文件不存在或内容不受支持时关闭日志。启用后，日志同时写入控制台和 `logs/log_<时间>` 目录。`VENERA_RUNTIME_DATA_DIR` 会作为 Node 环境下 `assets` 和 `logs` 相对路径的根目录。
+
+调用方可以通过 `logger.level` 调整当前实例的最低日志级别。`logger.enabled` 表示导入时是否成功开启日志。应在导入 `venera-runtime` 之前准备好 `assets/debug`，运行期间新增该文件不会重新初始化 logger。
+
 ## 最小可运行示例
 
 推荐使用 `loadVeneraConfig()`。它会创建运行时并执行配置源码，然后像 Venera 1.6.3 一样，在加载后异步启动配置源的 `init()`。加载函数本身同步返回，不会等待 `init()` 完成。

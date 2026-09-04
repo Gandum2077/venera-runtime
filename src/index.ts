@@ -6,6 +6,7 @@ export * from "./cookiejar";
 export * from "./database";
 export * from "./html-wrapper";
 export * from "./load-config";
+export * from "./logger";
 export * from "./modify-image";
 export * from "./network";
 export * from "./package-api";
