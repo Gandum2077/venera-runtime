@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:examples
       - run: npm run test:package
   compatibility:
     runs-on: ubuntu-latest

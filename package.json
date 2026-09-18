@@ -14,7 +14,10 @@
     "!dist/show-loading.*",
     "docs",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "examples",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md"
   ],
   "exports": {
     ".": {
@@ -54,7 +57,8 @@
     "format": "prettier --write .",
     "test:compat": "vitest run --config vitest.compat.config.mts",
     "clean": "node scripts/clean.cjs",
-    "test:package": "npm run build:node && node scripts/test-package.cjs"
+    "test:package": "npm run build:node && node scripts/test-package.cjs",
+    "test:examples": "npm run build:node && tsc -p examples/tsconfig.node.json && tsc -p examples/tsconfig.jsbox.json && node scripts/test-examples.cjs"
   },
   "repository": {
     "type": "git",

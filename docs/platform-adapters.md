@@ -1,5 +1,7 @@
 # 运行环境适配器
 
+[首页](../README.md) · [API 参考](api.md) · [贡献指南](../CONTRIBUTING.md)
+
 `src/api.ts` 是纯类型的能力清单，`RuntimeAdapter` 中的每项能力都必须实现。
 `src/adapters/node.ts`、`src/adapters/jsbox.ts` 是内置实现，`src/platform.ts` 负责注册、检测和转发。
 共享核心不检查环境名称，也不访问 Node 或 JSBox 原生对象。
@@ -19,7 +21,7 @@
 数据库和文件操作保留同步语义，以兼容 Venera 配置中的同步 `saveData()`、`loadData()` 等调用。
 只有异步存储 API 的新宿主，需要在适配器内提供同步可用的存储层，不能直接返回 Promise 冒充同步结果。
 
-宿主还需提供 ES2021、console、setTimeout/clearTimeout；依赖包需要通过适合该宿主的构建工具处理。
+宿主还需提供 ES2021、console、setTimeout/clearTimeout，并允许通过 Function 动态执行可信脚本。locale 功能使用 Intl，veneraFetch 使用 Headers；新环境需确认这些全局能力可用，必要时提供兼容实现。依赖包需要通过适合该宿主的构建工具处理。
 UUID、哈希、配置模型等纯 JavaScript 逻辑属于共享核心，无需每个宿主重复实现。
 
 ## 注册新环境
@@ -39,6 +41,7 @@ const definition = {
 } satisfies RuntimeAdapterDefinition;
 
 registerRuntimeAdapter(definition);
+// sourceCode 是调用方已经读取的可信配置源码。
 const source = loadVeneraConfig(sourceCode);
 ```
 
@@ -56,7 +59,7 @@ const source = loadVeneraConfig(sourceCode);
 id 只能包含小写字母、数字和连字符，必须以字母开头，不能重复或占用内置的 node、jsbox。
 初始化错误直接抛出，不会悄悄回退到其他宿主。完整性检查验证方法存在；行为正确性还需通过适配器测试验证。
 
-## 本次发布准备的接口调整
+## 从早期本地版本迁移
 
 - 根入口显式导出应用层 API 和 Venera 类型。底层能力、注册和环境查询从 `venera-runtime/platform` 导入。
 - 使用 `getRuntimeEnvironment()` 代替旧的 runtimeEnvironment/isNode/isJsBox 常量。
@@ -71,3 +74,5 @@ id 只能包含小写字母、数字和连字符，必须以字母开头，不�
 - `npm run test:compat`：真实配置兼容测试；可设置 VENERA_CONFIGS_DIR，缺失配置仓库时明确失败。
 - `npm run test:package`：重新构建并在临时目录安装 tarball，验证 CJS、原生 ESM、SQLite、图片和无 jsbox-types 的消费者类型检查。
 - `npm run build:jsbox-test`：构建真机测试应用；Node 模拟和打包成功不能替代 JSBox 真机验证。
+
+完整开发与真机报告流程见 [贡献指南](../CONTRIBUTING.md)，按版本归档的变化见 [变更记录](../CHANGELOG.md)。

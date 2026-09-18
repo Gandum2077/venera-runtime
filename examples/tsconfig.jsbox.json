@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2023", "DOM"],
+    "types": []
+  },
+  "include": ["jsbox/*.ts", "../node_modules/jsbox-types/index.d.ts"]
+}

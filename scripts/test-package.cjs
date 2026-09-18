@@ -80,6 +80,17 @@ assert.equal(getRuntimeEnvironment(), "node");
 `,
   );
   run(process.execPath, ["smoke.mjs"]);
+  // Execute the shipped documentation examples against the installed package.
+  for (const [file, expected] of [
+    ["basic.cjs", "Local demo: Venera"],
+    ["basic.mjs", "Local demo: Venera"],
+    ["initialized.mjs", "Initialized: true"],
+  ]) {
+    const output = run(process.execPath, [
+      join(directory, "node_modules/venera-runtime/examples/node", file),
+    ]);
+    assert.equal(output.trim(), expected, file);
+  }
   writeFileSync(
     join(directory, "consumer.mts"),
     `
@@ -119,7 +130,7 @@ const incomplete: RuntimeAdapter = { files: adapter.files };
     join(directory, "tsconfig.json"),
   ]);
   console.log(
-    `Package consumer checks passed (${packed.files.length} files): CJS, native ESM, SQLite, images, TypeScript without jsbox-types.`,
+    `Package consumer checks passed (${packed.files.length} files): CJS, native ESM, SQLite, images, TypeScript without jsbox-types, documentation examples.`,
   );
 } catch (error) {
   if (error.stdout) console.error(String(error.stdout));
