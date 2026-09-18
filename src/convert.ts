@@ -1,5 +1,5 @@
 import CryptoJS from "crypto-js";
-import { decodeText, encodeText } from "./api";
+import { decodeText, encodeText } from "./platform";
 import { ConvertApi } from "./venera-types";
 import {
   ArrayBufferLikeInput,

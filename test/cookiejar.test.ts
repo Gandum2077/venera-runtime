@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDatabase } from "../src/api";
+import { openDatabase } from "../src/platform";
 import { BrowserCookieJar } from "../src/cookiejar";
 import { DBManager } from "../src/database";
 

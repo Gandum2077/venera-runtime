@@ -1,6 +1,7 @@
+import { setCliIo } from "../src/adapters/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runApiTestSuite } from "../src/api-test-suite";
-import { decodeText, httpRequest, setCliIo, runtimeUi } from "../src/api";
+import { decodeText, httpRequest, runtimeUi } from "../src/platform";
 import { createServer, type Server } from "node:http";
 import { Network, veneraFetch } from "../src/network";
 
@@ -45,7 +46,13 @@ beforeAll(async () => {
       );
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
   const address = server.address();
   if (!address || typeof address === "string")
     throw new Error("Failed to start test server");
@@ -53,6 +60,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (!server?.listening) return;
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   );

@@ -1,13 +1,13 @@
+import { createUuid } from "./uuid";
 import {
-  createUuid,
   decodeText,
   encodeText,
   httpRequest,
   openDatabase,
-  runtimeEnvironment,
+  getRuntimeEnvironment,
   runtimeFiles,
   runtimeImages,
-} from "./api";
+} from "./platform";
 import { VENERA_APP_VERSION, VENERA_RUNTIME_PLATFORM } from "./constants";
 import { modifyImage } from "./modify-image";
 
@@ -20,7 +20,7 @@ export interface RuntimeTestResult {
 
 export interface RuntimeTestReport {
   schemaVersion: 1;
-  runtime: "node" | "jsbox";
+  runtime: string;
   veneraVersion: string;
   platform: string;
   startedAt: string;
@@ -283,7 +283,7 @@ export async function runApiTestSuite(
 
   return {
     schemaVersion: 1,
-    runtime: runtimeEnvironment,
+    runtime: getRuntimeEnvironment(),
     veneraVersion: VENERA_APP_VERSION,
     platform: VENERA_RUNTIME_PLATFORM,
     startedAt: startedAt.toISOString(),

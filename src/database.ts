@@ -3,7 +3,7 @@ import {
   DatabaseStatement,
   openDatabase,
   RuntimeDatabase,
-} from "./api";
+} from "./platform";
 import { VENERA_CONFIG_DATABASE_PATH } from "./constants";
 
 const CREATE_TABLE_STATEMENTS = [

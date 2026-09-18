@@ -1,3 +1,4 @@
+import { createUuid } from "./uuid";
 import { logger } from "./logger";
 import type {
   ComicDetailsShape,
@@ -19,7 +20,7 @@ import {
 import { Network, veneraFetch } from "./network";
 import { APP } from "./app";
 import { configManager } from "./config";
-import { createUuid, getClipboardText, setClipboardText } from "./api";
+import { getClipboardText, setClipboardText } from "./platform";
 
 /** 运行时注入给配置文件的 `Comic` 类。 */
 class Comic implements ComicShape {

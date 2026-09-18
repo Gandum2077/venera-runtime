@@ -1,4 +1,4 @@
-import { runtimeImages, RuntimeImageHandle } from "./api";
+import { runtimeImages, RuntimeImageHandle } from "./platform";
 
 function assertInteger(value: number, label: string): void {
   if (!Number.isInteger(value)) throw new Error(`${label} must be an integer`);
@@ -128,11 +128,9 @@ function createModifyImageFunction(
 
 /** 对齐 Venera 的 Image 脚本能力，双方统一接收和返回图片字节。 */
 export async function modifyImage(
-  data: ArrayBuffer | ArrayBufferView | NSData,
+  data: ArrayBuffer | ArrayBufferView,
   script: string,
 ): Promise<ArrayBuffer> {
-  const bytes =
-    "byteArray" in data ? Uint8Array.from(data.byteArray).buffer : data;
-  const input = new RuntimeImage(await runtimeImages.decode(bytes));
+  const input = new RuntimeImage(await runtimeImages.decode(data));
   return createModifyImageFunction(script)(input).encodePng();
 }

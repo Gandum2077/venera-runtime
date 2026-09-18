@@ -16,8 +16,11 @@ const configsDirectory =
 const indexPath = resolve(configsDirectory, "index.json");
 
 describe("real venera-configs compatibility", () => {
-  const run = existsSync(indexPath) ? it : it.skip;
-  run("loads every indexed config without running network init", () => {
+  it("loads every indexed config without running network init", () => {
+    if (!existsSync(indexPath))
+      throw new Error(
+        `Missing venera-configs index: ${indexPath}. Set VENERA_CONFIGS_DIR before running test:compat.`,
+      );
     const index = JSON.parse(
       readFileSync(indexPath, "utf8"),
     ) as ConfigIndexEntry[];

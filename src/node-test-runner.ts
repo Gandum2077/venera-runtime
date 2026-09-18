@@ -3,7 +3,7 @@ import {
   formatTestReportMarkdown,
   runApiTestSuite,
 } from "./api-test-suite";
-import { runtimeFiles } from "./api";
+import { runtimeFiles } from "./platform";
 
 async function main(): Promise<void> {
   const report = await runApiTestSuite({

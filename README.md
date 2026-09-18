@@ -11,7 +11,7 @@
 
 ## 运行要求
 
-- Node.js `^20.9.0 || >=22.0.0`
+- Node.js `^20.18.1 || ^22.0.0 || ^24.0.0 || ^26.0.0`
 - npm
 - JSBox SDK 2.22.0 或更高（在 JSBox 项目中使用时）
 
@@ -142,9 +142,9 @@ import { logger } from "venera-runtime";
 logger.error("Image task failed", error);
 ```
 
-logger 在包首次导入时读取 `assets/debug`。文件内容可以是 `on`、`info`、`warn`、`warning` 或 `error`；文件不存在或内容不受支持时关闭日志。启用后，日志同时写入控制台和 `logs/log_<时间>` 目录。`VENERA_RUNTIME_DATA_DIR` 会作为 Node 环境下 `assets` 和 `logs` 相对路径的根目录。
+logger 在首次读取其状态或写日志时读取 `assets/debug`。文件内容可以是 `on`、`info`、`warn`、`warning` 或 `error`；文件不存在或内容不受支持时关闭日志。启用后，日志同时写入控制台和 `logs/log_<时间>` 目录。`VENERA_RUNTIME_DATA_DIR` 会作为 Node 环境下 `assets` 和 `logs` 相对路径的根目录。
 
-调用方可以通过 `logger.level` 调整当前实例的最低日志级别。`logger.enabled` 表示导入时是否成功开启日志。应在导入 `venera-runtime` 之前准备好 `assets/debug`，运行期间新增该文件不会重新初始化 logger。
+调用方可以通过 `logger.level` 调整当前实例的最低日志级别。`logger.enabled` 表示首次使用时是否成功开启日志。应在首次使用 logger 之前准备好 `assets/debug`，初始化后新增该文件不会重新初始化 logger。
 
 ## 最小可运行示例
 
@@ -397,14 +397,16 @@ Node 端 UI 不创建图形窗口：消息、对话框、加载状态和链接�
 npm run typecheck
 npm test
 npm run test:coverage
+npm run test:compat
+npm run test:package
 npm run build:node
 npm run build:jsbox-test
 ```
 
-真实配置兼容测试默认查找 `../Github/venera-configs`，也可以指定：
+真实配置兼容测试独立于 `npm test`，缺少配置文件时明确失败。默认查找 `../Github/venera-configs`，也可以指定：
 
 ```bash
-VENERA_CONFIGS_DIR=/path/to/venera-configs npm test
+VENERA_CONFIGS_DIR=/path/to/venera-configs npm run test:compat
 ```
 
 生成和比较 Node/JSBox API 报告：
@@ -416,10 +418,13 @@ npm run test:compare
 
 ## 架构
 
-`src/api.ts` 是平台边界。数据库 BLOB、HTTP 响应体和图片处理输入输出都在边界处统一为 `ArrayBuffer`，避免 `NSData`、`SqliteTypes` 或 Node `Buffer` 泄漏到共享核心。
+`src/api.ts` 定义每个环境必须实现的能力契约，`src/platform.ts` 负责惰性选择适配器。
+Node.js 与 JSBox 的实现分别位于 `src/adapters/`，共享核心通过中立类型使用这些能力。
+
+新增环境、接口迁移及验证方式见 [运行环境适配器](docs/platform-adapters.md)。
 
 ```text
-Node primitives ─┐
-                 ├─ src/api.ts ─ shared runtime ─ Venera config
-JSBox globals ───┘
+Node adapter ───┐
+JSBox adapter ──┼─ RuntimeAdapter contract ─ shared runtime ─ Venera config
+Custom adapter ─┘
 ```

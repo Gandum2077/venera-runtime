@@ -1,4 +1,4 @@
-import { runtimeFiles } from "./api";
+import { runtimeFiles } from "./platform";
 
 export type LogLevel = "info" | "warning" | "error";
 export type LogLevelInput = LogLevel | "warn";
@@ -61,17 +61,6 @@ function ensureDirectory(path: string): boolean {
     }
   }
   return true;
-}
-
-const debugLevel = readDebugLevel();
-const logOn = debugLevel !== "off";
-const logLevel: LogLevel = logOn ? debugLevel : "info";
-const logDirectory = logOn
-  ? `${LOG_ROOT_PATH}/log_${formatTimestamp(new Date(), true)}`
-  : null;
-
-if (logDirectory) {
-  ensureDirectory(logDirectory);
 }
 
 const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
@@ -174,13 +163,28 @@ function createLogText(
 }
 
 class Logger {
-  private _level: LogLevel = logLevel;
+  private _level: LogLevel | undefined;
+  private state:
+    { enabled: boolean; directory: string | null; level: LogLevel } | undefined;
+
+  private getState() {
+    if (!this.state) {
+      const level = readDebugLevel();
+      const enabled = level !== "off";
+      const directory = enabled
+        ? `${LOG_ROOT_PATH}/log_${formatTimestamp(new Date(), true)}`
+        : null;
+      if (directory) ensureDirectory(directory);
+      this.state = { enabled, directory, level: enabled ? level : "info" };
+    }
+    return this.state;
+  }
   private logIndex = 0;
 
   constructor() {}
 
   get level(): LogLevel {
-    return this._level;
+    return this._level ?? this.getState().level;
   }
 
   set level(newLevel: LogLevelInput) {
@@ -188,17 +192,17 @@ class Logger {
   }
 
   get enabled(): boolean {
-    return logOn;
+    return this.getState().enabled;
   }
 
   get directory(): string | null {
-    return logDirectory;
+    return this.getState().directory;
   }
 
   log(level: LogLevelInput, title: string, content?: unknown): void {
-    if (!logOn) return;
+    if (!this.enabled) return;
     const normalizedLevel = toLogLevel(level);
-    if (shouldLogLevel(normalizedLevel, this._level)) {
+    if (shouldLogLevel(normalizedLevel, this.level)) {
       switch (normalizedLevel) {
         case "info":
           console.info(`[${title}]`);
@@ -238,6 +242,7 @@ class Logger {
   }
 
   private writeFile(level: LogLevel, title: string, content: unknown): void {
+    const logDirectory = this.directory;
     if (!logDirectory || !runtimeFiles.exists(logDirectory)) {
       return;
     }

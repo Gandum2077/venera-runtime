@@ -109,11 +109,11 @@ export function loadVeneraConfigBySourceCode(
   globals.ComicSource.sources[source.key] = source;
   if (runInit && source.init) {
     setTimeout(() => {
-      void Promise.resolve(source.init?.call(source)).catch(
-        (error: unknown) => {
+      void Promise.resolve()
+        .then(() => source.init?.call(source))
+        .catch((error: unknown) => {
           console.error("Venera config init failed", error);
-        },
-      );
+        });
     }, VENERA_INIT_DELAY_MS);
   }
   return source;

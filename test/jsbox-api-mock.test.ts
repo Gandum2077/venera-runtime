@@ -41,14 +41,14 @@ describe("JSBox platform adapter", () => {
     });
     vi.resetModules();
 
-    const { httpRequest, runtimeEnvironment } = await import("../src/api");
+    const { httpRequest, getRuntimeEnvironment } = await import("../src/platform");
     const response = await httpRequest({
       method: "GET",
       url: "https://example.com/status/204",
       timeout: 8_000,
     });
 
-    expect(runtimeEnvironment).toBe("jsbox");
+    expect(getRuntimeEnvironment()).toBe("jsbox");
     expect(receiver).toBe(mockHttp);
     expect(receivedOptions?.timeout).toBe(8);
     expect(response.status).toBe(204);

@@ -6,7 +6,7 @@ import {
   RuntimeTestReport,
   RuntimeTestResult,
 } from "./api-test-suite";
-import { runtimeFiles } from "./api";
+import { runtimeFiles } from "./platform";
 
 const REPORT_MARKDOWN_PATH = "shared://venera-runtime-api-report.md";
 const REPORT_JSON_PATH = "shared://venera-runtime-api-report.json";

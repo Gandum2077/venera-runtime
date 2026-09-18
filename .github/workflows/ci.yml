@@ -1,0 +1,38 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  node:
+    strategy:
+      matrix:
+        node: [20.18.1, 22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:package
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: venera-app/venera-configs
+          ref: 586880821a654a3dc34d15331135ab12bdbf321e
+          path: .fixtures/venera-configs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:compat
+        env:
+          VENERA_CONFIGS_DIR: ${{ github.workspace }}/.fixtures/venera-configs
+      - run: npm run build:jsbox-test

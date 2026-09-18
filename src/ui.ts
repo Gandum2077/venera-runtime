@@ -1,4 +1,4 @@
-import { runtimeUi } from "./api";
+import { runtimeUi } from "./platform";
 import type { UIApi } from "./venera-types";
 
 /** Venera 1.6.3 的 UI API；Node 环境由 CLI 文本与输入替代原生界面。 */

@@ -12,6 +12,7 @@
     "!dist/node-test-runner.*",
     "!dist/show-input-dialog.*",
     "!dist/show-loading.*",
+    "docs",
     "README.md",
     "LICENSE"
   ],
@@ -21,10 +22,22 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
+    },
+    "./adapters/node": {
+      "types": "./dist/adapters/node.d.ts",
+      "default": "./dist/adapters/node.js"
+    },
+    "./adapters/jsbox": {
+      "types": "./dist/adapters/jsbox.d.ts",
+      "default": "./dist/adapters/jsbox.js"
     }
   },
   "engines": {
-    "node": "^20.9.0 || >=22.0.0"
+    "node": "^20.18.1 || ^22.0.0 || ^24.0.0 || ^26.0.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
@@ -32,13 +45,16 @@
     "test:coverage": "vitest run --coverage",
     "test:node-report": "tsc && node dist/node-test-runner.js",
     "test:compare": "tsc && node dist/compare-test-reports.js",
-    "build:node": "tsc",
-    "build": "tsc && webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
-    "build:debug": "tsc && webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
+    "build:node": "npm run clean && tsc",
+    "build": "npm run build:node && webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
+    "build:debug": "npm run build:node && webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
     "build:jsbox-test": "npm run build --entry=./dist/jsbox-test-runner.js",
     "build:jsbox-test:debug": "npm run build:debug --entry=./dist/jsbox-test-runner.js",
     "prepare": "npm run build:node",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:compat": "vitest run --config vitest.compat.config.mts",
+    "clean": "node scripts/clean.cjs",
+    "test:package": "npm run build:node && node scripts/test-package.cjs"
   },
   "repository": {
     "type": "git",
@@ -64,7 +80,8 @@
     "iconv-lite": "^0.7.3",
     "jsbox-cview": "^1.6.9",
     "sharp": "^0.35.3",
-    "url-parse": "^1.5.10"
+    "url-parse": "^1.5.10",
+    "domhandler": "^5.0.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -77,6 +94,7 @@
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "webpack": "^5.108.4",
-    "webpack-cli": "^7.0.2"
+    "webpack-cli": "^7.0.2",
+    "minimizer-webpack-plugin": "^5.6.1"
   }
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { HtmlDocumentWrapper } from "../src/html-wrapper";
 import { createVeneraRuntime } from "../src/runtime";
-import { loadVeneraConfigBySourceCode } from "../src/load-config";
+import {
+  loadVeneraConfigBySourceCode,
+  loadVeneraConfigBySourceCodeAsync,
+} from "../src/load-config";
 import { loadVeneraConfig } from "../src/package-api";
 import { configManager } from "../src/config";
 
@@ -53,6 +56,32 @@ class AsyncSource extends ComicSource {
       expect(source.loadData("ready")).toBe(true);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    "throw new Error('init failed')",
+    "return Promise.reject(new Error('init failed'))",
+  ])("contains background init failure: %s", async (body) => {
+    vi.useFakeTimers();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const code = `class Failing extends ComicSource {
+        name = "Failing"; key = "failing"; version = "1.0.0";
+        init() { ${body}; }
+      }`;
+    try {
+      expect(loadVeneraConfig(code).key).toBe("failing");
+      await vi.advanceTimersByTimeAsync(50);
+      expect(error).toHaveBeenCalledExactlyOnceWith(
+        "Venera config init failed",
+        expect.objectContaining({ message: "init failed" }),
+      );
+      await expect(
+        loadVeneraConfigBySourceCodeAsync(code, createVeneraRuntime()),
+      ).rejects.toThrow("init failed");
+    } finally {
+      vi.useRealTimers();
+      error.mockRestore();
     }
   });
 
