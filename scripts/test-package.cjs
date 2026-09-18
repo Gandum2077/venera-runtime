@@ -5,6 +5,7 @@ const { tmpdir } = require("node:os");
 const { resolve, join } = require("node:path");
 
 const root = resolve(__dirname, "..");
+const manifest = require("../package.json");
 const directory = mkdtempSync(join(tmpdir(), "venera-package-"));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 function run(command, args, cwd = directory) {
@@ -24,6 +25,22 @@ try {
       root,
     ),
   );
+  assert.equal(packed.name, manifest.name);
+  assert.equal(packed.version, manifest.version);
+  for (const path of [
+    "dist/index.js",
+    "dist/index.d.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs/platform-adapters.md",
+    "examples/node/basic.cjs",
+  ]) {
+    assert(
+      packed.files.some((file) => file.path === path),
+      `Missing ${path}`,
+    );
+  }
   assert(
     !packed.files.some(({ path }) =>
       /test-runner|api-test-suite|compare-test-reports/.test(path),

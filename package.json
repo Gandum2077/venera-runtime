@@ -1,6 +1,6 @@
 {
   "name": "venera-runtime",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A venera runtime that works in both Node and JSBox environments.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,10 +49,10 @@
     "test:node-report": "tsc && node dist/node-test-runner.js",
     "test:compare": "tsc && node dist/compare-test-reports.js",
     "build:node": "npm run clean && tsc",
-    "build": "npm run build:node && webpack --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime.box . && rm main.js",
-    "build:debug": "npm run build:node && webpack --env debug=true --entry-reset --entry ${npm_config_entry:-./dist/index.js} --output-path ./app --output-filename main.js && cd app && zip -q -r ../venera-runtime-debug.box . && rm main.js",
-    "build:jsbox-test": "npm run build --entry=./dist/jsbox-test-runner.js",
-    "build:jsbox-test:debug": "npm run build:debug --entry=./dist/jsbox-test-runner.js",
+    "build": "node scripts/build-jsbox.cjs",
+    "build:debug": "node scripts/build-jsbox.cjs --debug",
+    "build:jsbox-test": "node scripts/build-jsbox.cjs --entry ./dist/jsbox-test-runner.js",
+    "build:jsbox-test:debug": "node scripts/build-jsbox.cjs --debug --entry ./dist/jsbox-test-runner.js",
     "prepare": "npm run build:node",
     "format": "prettier --write .",
     "test:compat": "vitest run --config vitest.compat.config.mts",
@@ -61,7 +61,10 @@
     "test:examples": "npm run build:node && tsc -p examples/tsconfig.node.json && tsc -p examples/tsconfig.jsbox.json && node scripts/test-examples.cjs",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run test:examples && npm run test:package",
+    "check:release": "npm run check && npm run test:compat && npm run build:jsbox-test && npm audit",
+    "prepublishOnly": "npm run check:release"
   },
   "repository": {
     "type": "git",
@@ -87,7 +90,7 @@
     "domhandler": "^5.0.3",
     "iconv-lite": "^0.7.3",
     "jsbox-cview": "^1.6.9",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "url-parse": "^1.5.10"
   },
   "devDependencies": {
@@ -96,7 +99,7 @@
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^26.1.1",
     "@types/url-parse": "^1.4.11",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
@@ -105,8 +108,13 @@
     "prettier": "^3.8.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^4.1.10",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11",
     "webpack": "^5.108.4",
     "webpack-cli": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

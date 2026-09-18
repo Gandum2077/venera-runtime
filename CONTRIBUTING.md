@@ -17,7 +17,7 @@ npm test
 ```
 
 npm ci 的 prepare 会构建 dist。依赖包含原生模块，切换 Node 版本后需要重新安装或重建对应模块。
-JSBox 的 .box 打包脚本还需要 POSIX shell 和 zip；当前 CI 在 Ubuntu 上执行。
+JSBox 的 .box 打包脚本使用 Node 执行构建，仍需系统提供 zip 命令；当前 CI 在 Ubuntu 上执行。
 
 ## 目录和边界
 
@@ -40,6 +40,8 @@ JSBox 的 .box 打包脚本还需要 POSIX shell 和 zip；当前 CI 在 Ubuntu 
 
 | 命令                       | 范围                                                                    |
 | -------------------------- | ----------------------------------------------------------------------- |
+| `npm run check`            | lint、格式、类型、基础测试、示例和 tarball 消费验证                     |
+| `npm run check:release`    | check、真实配置兼容、JSBox 构建和完整依赖安全审计                       |
 | `npm run lint`             | ESLint flat config，源码、测试、示例和构建脚本；警告也导致失败          |
 | `npm run lint:fix`         | 自动修复可修复的 lint 问题，会写入文件                                  |
 | `npm run format:check`     | 只检查 Prettier 格式，不写入文件                                        |
@@ -62,6 +64,8 @@ JSBox 的 .box 打包脚本还需要 POSIX shell 和 zip；当前 CI 在 Ubuntu 
 
 当前开发编译器固定在 TypeScript 6.0 系列：typescript-eslint 8.70 支持 `>=4.8.4 <6.1.0`，尚不支持原来的 TypeScript 7 编译器。升级编译器时需一起验证解析器兼容性，不能跳过 peer dependency 检查。
 
+显式保留 Vite 6 开发依赖，让 Vitest 可以在 Node 20.18.1 的兼容性任务中运行；升级 Vite 主版本时应先核对其 Node 要求。
+
 类型感知检查显式使用 `tsconfig.eslint.json`，覆盖 src、test、TypeScript 示例和 Vitest 配置，解决测试/示例分别使用命名 tsconfig 的问题。它不生成产物，也不改变发布构建的包含范围。
 
 Node JavaScript 脚本、JSBox 应用脚本和 Venera 配置示例分别声明全局变量。TypeScript 的未声明标识符由 tsc 检查。dist、覆盖率、测试报告、外部配置样本等生成内容不参与 lint/格式检查。
@@ -80,6 +84,8 @@ VENERA_CONFIGS_DIR=/absolute/path/to/venera-configs npm run test:compat
 CI 使用固定配置提交以保证可复现；更新该提交时需要重新验证。此测试不会覆盖所有网站的登录、搜索、图片下载等功能。
 
 ## JSBox 真机与报告比较
+
+测试应用目前自动覆盖 8 项基础能力：元数据、UTF-8、GBK、文件、SQLite、UUID、图片及 HTTP。它不自动操作原生输入框、对话框或剪贴板；首版发布及相关 UI 能力变更时，应另外手动确认这些交互，包括取消输入和对话框操作回调。每次修改后运行测试应用并确认全部通过，是日常真机回归的基础。
 
 1. 在仓库执行 `npm run build:jsbox-test`，将生成的 venera-runtime.box 导入 JSBox。
 2. 在真机运行测试应用，确认完成情况；使用分享按钮导出 jsbox-api-report.json 和 Markdown 报告。
@@ -108,19 +114,26 @@ npm run test:compare -- /path/to/node-api-report.json /path/to/jsbox-api-report.
 .github/workflows/ci.yml 对 Node 20.18.1、22、24、26 执行类型、基础测试、示例和 tarball 验证；另有真实配置兼容与 JSBox 构建任务。
 CI 不能替代 JSBox 真机验证。
 
-发布前依次检查：
+发布前使用 Node 24 或 26，在已准备真实配置仓库的环境执行：
 
 ```bash
-npm run lint
-npm run format:check
-npm run typecheck
-npm test
-npm run test:examples
-npm run test:compat
-npm run test:package
-npm run build:jsbox-test
+VENERA_CONFIGS_DIR=/absolute/path/to/venera-configs npm run check:release
 npm pack --dry-run
 ```
 
-确认版本、CHANGELOG、支持环境和包文件清单与本次发布一致；归档对应的真机报告。
-本地 npm pack 与 test:package 不会发布到 registry。实际发布是单独的维护者操作，不在检查命令中执行。
+`check` 聚合 lint、格式、类型、基础测试、示例和 tarball 消费验证。`check:release` 再执行真实配置测试、JSBox 测试应用构建和 `npm audit`；审计覆盖生产与开发依赖，有漏洞或 registry 请求失败时都会阻止发布。CI 也执行依赖审计。
+
+`prepublishOnly` 自动执行 `check:release`，因此从仓库运行 `npm publish` 时会重新检查。`test:package` 内部使用 `npm pack --ignore-scripts`，避免生命周期递归；它在打包前已显式构建。普通 `npm pack` 通过 `prepare` 重建 dist，但不执行完整发布检查。不要使用 `--ignore-scripts` 绕过发布检查。
+
+JSBox 构建通过标准参数传递入口，例如 `npm run build -- --entry ./dist/jsbox-test-runner.js`。默认库入口保持为 dist/index.js；日常真机测试使用 `npm run build:jsbox-test`。构建在临时目录中生成全新的归档，成功后替换目标 .box，失败时保留上一次成功产物。
+
+首版为 **0.1.0**。发布顺序：
+
+1. 确认 package.json、package-lock.json 和 app/config.json 的版本一致，更新 CHANGELOG 发布日期及 README/Node 指南的安装状态。
+2. 运行 check:release，检查 tarball 文件清单；把本次生成的 .box 在真机跑完，确认 failed 和 skipped 均为 0，归档报告。
+3. 提交变更并等待该提交的 GitHub CI 全部通过。之前提交的绿色 CI 不覆盖新改动。
+4. 在同一提交的干净工作树中运行 `npm publish --access public`（需要 npm 发布权限；此命令会实际上传）。
+5. 确认 registry 中的版本是 0.1.0，在空目录执行 `npm install venera-runtime@0.1.0` 并运行随包提供的 Node 示例。
+6. 为发布提交创建并推送 `v0.1.0` Git tag。
+
+本地 npm pack、check:release 和 test:package 都不会发布到 registry。实际发布是单独的维护者操作。

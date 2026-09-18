@@ -17,7 +17,7 @@ npm pack
 在调用方安装生成的实际文件名：
 
 ```bash
-npm install /absolute/path/to/venera-runtime/venera-runtime-1.0.0.tgz
+npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.0.tgz
 ```
 
 源码变化后重新 pack 和安装，才能得到新的快照。正式发布后可使用 `npm install venera-runtime`。

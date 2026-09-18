@@ -20,7 +20,7 @@ npm ci
 npm pack
 
 # 在调用方项目中，使用 npm pack 输出的实际文件名
-npm install /absolute/path/to/venera-runtime/venera-runtime-1.0.0.tgz
+npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.0.tgz
 ```
 
 正式发布后的安装命令为 `npm install venera-runtime`。Node 依赖包含 `better-sqlite3`、`sharp` 等原生模块，应在目标机器上安装。更多方式见 [Node.js 指南](docs/node.md)。
