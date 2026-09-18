@@ -92,12 +92,14 @@ import { loadVeneraConfig, type VeneraConfigSource } from "venera-runtime";
 
 ```bash
 npm ci
+npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run test:examples
 ```
 
-完整验证流程见 [贡献指南](CONTRIBUTING.md)。
+开发建议使用 Node 24 或 26。完整验证流程与开发工具版本要求见 [贡献指南](CONTRIBUTING.md)。
 
 ## 许可证
 

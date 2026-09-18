@@ -8,7 +8,6 @@ import type {
   RuntimeHttpResponse,
   RuntimeUiApi,
   RuntimeImageApi,
-  RuntimeImageHandle,
   RuntimeAdapter,
   RuntimeAdapterDefinition,
 } from "../api";
@@ -274,7 +273,7 @@ export function createJsBoxAdapter(): RuntimeAdapter {
                   {
                     type: "view" as const,
                     props: { bgcolor: $color("separator") },
-                    layout: (make: MASConstraintMaker, view: UIView) => {
+                    layout: (make: MASConstraintMaker) => {
                       make.left.right.inset(0);
                       make.bottom.inset(44);
                       make.height.equalTo(1 / $device.info.screen.scale);
@@ -287,7 +286,7 @@ export function createJsBoxAdapter(): RuntimeAdapter {
                       font: $font(16),
                       bgcolor: $color("clear"),
                     },
-                    layout: (make: MASConstraintMaker, view: UIButtonView) => {
+                    layout: (make: MASConstraintMaker) => {
                       make.left.right.bottom.inset(0);
                       make.height.equalTo(44);
                     },
@@ -320,7 +319,7 @@ export function createJsBoxAdapter(): RuntimeAdapter {
       Input,
       Label,
       searchBarBgcolor,
-    } = require("jsbox-cview") as typeof import("jsbox-cview");
+    } = require("jsbox-cview") as typeof import("jsbox-cview"); // eslint-disable-line @typescript-eslint/no-require-imports -- Load native UI code only in JSBox.
     class LazyImage extends Base<UIView, UiTypes.ViewOptions> {
       private readonly url: string;
       _defineView: () => UiTypes.ViewOptions;
@@ -485,28 +484,30 @@ export function createJsBoxAdapter(): RuntimeAdapter {
     },
     async showDialog(title, content, actions) {
       await new Promise<void>((resolve, reject) => {
-        $ui.alert({
-          title,
-          message: content,
-          actions: (actions.length > 0
-            ? actions
-            : [{ text: "OK", callback: () => {} }]
-          ).map((action) => ({
-            title: action.text,
-            style:
-              action.style === "danger"
-                ? $alertActionType.destructive
-                : $alertActionType.default,
-            handler: async () => {
-              try {
-                await action.callback();
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            },
-          })),
-        });
+        void Promise.resolve(
+          $ui.alert({
+            title,
+            message: content,
+            actions: (actions.length > 0
+              ? actions
+              : [{ text: "OK", callback: () => {} }]
+            ).map((action) => ({
+              title: action.text,
+              style:
+                action.style === "danger"
+                  ? $alertActionType.destructive
+                  : $alertActionType.default,
+              handler: async () => {
+                try {
+                  await action.callback();
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              },
+            })),
+          }),
+        ).catch(reject);
       });
     },
     launchUrl(url) {
@@ -533,7 +534,7 @@ export function createJsBoxAdapter(): RuntimeAdapter {
       if (options.length === 0) return null;
 
       const { listDialog } =
-        require("jsbox-cview") as typeof import("jsbox-cview");
+        require("jsbox-cview") as typeof import("jsbox-cview"); // eslint-disable-line @typescript-eslint/no-require-imports -- Load native UI code only in JSBox.
       try {
         return await listDialog({
           title,

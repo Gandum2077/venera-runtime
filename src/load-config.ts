@@ -160,6 +160,7 @@ function evaluateVeneraConfig(
    * 用 `new Function(...)` 动态执行配置脚本，并把运行时对象作为参数注入进去。
    */
   const className = detectSourceClassName(sourceCode);
+  // eslint-disable-next-line no-new-func -- Venera configuration is trusted executable source; this loader is not a sandbox.
   const factory = new Function(
     ...Object.keys(globals),
     `

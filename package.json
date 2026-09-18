@@ -58,7 +58,10 @@
     "test:compat": "vitest run --config vitest.compat.config.mts",
     "clean": "node scripts/clean.cjs",
     "test:package": "npm run build:node && node scripts/test-package.cjs",
-    "test:examples": "npm run build:node && tsc -p examples/tsconfig.node.json && tsc -p examples/tsconfig.jsbox.json && node scripts/test-examples.cjs"
+    "test:examples": "npm run build:node && tsc -p examples/tsconfig.node.json && tsc -p examples/tsconfig.jsbox.json && node scripts/test-examples.cjs",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format:check": "prettier --check ."
   },
   "repository": {
     "type": "git",
@@ -81,24 +84,29 @@
     "cheerio": "^1.2.0",
     "clipboardy": "^5.3.1",
     "crypto-js": "^4.2.0",
+    "domhandler": "^5.0.3",
     "iconv-lite": "^0.7.3",
     "jsbox-cview": "^1.6.9",
     "sharp": "^0.35.3",
-    "url-parse": "^1.5.10",
-    "domhandler": "^5.0.3"
+    "url-parse": "^1.5.10"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^26.1.1",
     "@types/url-parse": "^1.4.11",
     "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
     "jsbox-types": "^2.0.3",
+    "minimizer-webpack-plugin": "^5.6.1",
     "prettier": "^3.8.1",
-    "typescript": "^7.0.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^4.1.10",
     "webpack": "^5.108.4",
-    "webpack-cli": "^7.0.2",
-    "minimizer-webpack-plugin": "^5.6.1"
+    "webpack-cli": "^7.0.2"
   }
 }

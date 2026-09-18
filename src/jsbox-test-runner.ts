@@ -1,10 +1,9 @@
 import { BaseController, Button, Label, Progress, Text } from "jsbox-cview";
+import type { RuntimeTestReport, RuntimeTestResult } from "./api-test-suite";
 import {
   DEFAULT_NETWORK_TEST_URL,
   formatTestReportMarkdown,
   runApiTestSuite,
-  RuntimeTestReport,
-  RuntimeTestResult,
 } from "./api-test-suite";
 import { runtimeFiles } from "./platform";
 
@@ -51,7 +50,7 @@ class TestReportController extends BaseController {
 
     this.progress = new Progress({
       props: { value: 0, progressColor: $color("tintColor") },
-      layout: (make, view) => {
+      layout: (make) => {
         make.top.equalTo($(this.statusLabel.id).bottom).offset(12);
         make.left.right.inset(20);
         make.height.equalTo(4);
@@ -175,7 +174,7 @@ class TestReportController extends BaseController {
         { name: "jsbox-api-report.md", data: markdown },
         { name: "jsbox-api-report.json", data: json },
       ],
-      handler: (success: boolean) => {},
+      handler: () => {},
     });
   }
 }

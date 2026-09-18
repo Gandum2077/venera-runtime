@@ -1,4 +1,5 @@
-import { runtimeImages, RuntimeImageHandle } from "./platform";
+import type { RuntimeImageHandle } from "./platform";
+import { runtimeImages } from "./platform";
 
 function assertInteger(value: number, label: string): void {
   if (!Number.isInteger(value)) throw new Error(`${label} must be an integer`);
@@ -111,6 +112,7 @@ class RuntimeImage {
 function createModifyImageFunction(
   script: string,
 ): (image: RuntimeImage) => RuntimeImage {
+  // eslint-disable-next-line no-new-func -- Venera image transforms are trusted executable scripts.
   const factory = new Function(
     "Image",
     `"use strict";\n${script}\nif (typeof modifyImage !== "function") { throw new Error("modifyImage is not defined"); }\nreturn modifyImage;`,

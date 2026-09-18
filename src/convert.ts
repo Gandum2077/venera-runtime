@@ -1,11 +1,8 @@
 import CryptoJS from "crypto-js";
 import { decodeText, encodeText } from "./platform";
-import { ConvertApi } from "./venera-types";
-import {
-  ArrayBufferLikeInput,
-  toUint8Array,
-  unsupportedFeature,
-} from "./tools";
+import type { ConvertApi } from "./venera-types";
+import type { ArrayBufferLikeInput } from "./tools";
+import { toUint8Array, unsupportedFeature } from "./tools";
 
 function arrayBufferToWordArray(
   value: ArrayBufferLikeInput,

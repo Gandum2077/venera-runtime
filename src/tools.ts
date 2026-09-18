@@ -47,6 +47,8 @@ export function guessExtension(url: string): string {
     if (matched?.[1]) {
       return matched[1].toLowerCase();
     }
-  } catch {}
+  } catch {
+    // Invalid URLs fall back to the generic binary extension below.
+  }
   return "bin";
 }

@@ -4,10 +4,14 @@
 
 ## 开发准备
 
-在支持的 Node 版本下执行：
+开发和 lint 建议使用 Node 24 或 26。ESLint 10 要求 `^20.19.0 || ^22.13.0 || >=24`，高于包消费者的最低 Node 版本；CI 把 lint/格式检查放在 Node 24 的独立任务中，原有运行时版本矩阵继续负责兼容性验证。
+
+初始化并检查：
 
 ```bash
 npm ci
+npm run lint
+npm run format:check
 npm run typecheck
 npm test
 ```
@@ -36,6 +40,9 @@ JSBox 的 .box 打包脚本还需要 POSIX shell 和 zip；当前 CI 在 Ubuntu 
 
 | 命令                       | 范围                                                                    |
 | -------------------------- | ----------------------------------------------------------------------- |
+| `npm run lint`             | ESLint flat config，源码、测试、示例和构建脚本；警告也导致失败          |
+| `npm run lint:fix`         | 自动修复可修复的 lint 问题，会写入文件                                  |
+| `npm run format:check`     | 只检查 Prettier 格式，不写入文件                                        |
 | `npm run typecheck`        | 源码与测试类型检查                                                      |
 | `npm test`                 | 本地确定性测试，包含临时 HTTP 服务；不依赖真实配置仓库                  |
 | `npm run test:coverage`    | 同一组测试的覆盖率报告                                                  |
@@ -48,6 +55,18 @@ JSBox 的 .box 打包脚本还需要 POSIX shell 和 zip；当前 CI 在 Ubuntu 
 
 包消费者测试需要安装依赖；首次可能访问 npm registry。测试进程需要允许本地回环端口监听。
 不要因为环境无法启动 HTTP 服务或原生模块 ABI 不匹配，就把测试失败当作实现回归；先修复测试环境。
+
+## ESLint 与格式化
+
+`eslint.config.mjs` 使用 flat config。JavaScript 使用 ESLint 推荐规则，TypeScript 使用 typescript-eslint 推荐规则，并开启悬空 Promise、Promise 误用、await 非 Promise 和类型导入检查。格式继续由 Prettier 管理，eslint-config-prettier 关闭冲突规则。
+
+当前开发编译器固定在 TypeScript 6.0 系列：typescript-eslint 8.70 支持 `>=4.8.4 <6.1.0`，尚不支持原来的 TypeScript 7 编译器。升级编译器时需一起验证解析器兼容性，不能跳过 peer dependency 检查。
+
+类型感知检查显式使用 `tsconfig.eslint.json`，覆盖 src、test、TypeScript 示例和 Vitest 配置，解决测试/示例分别使用命名 tsconfig 的问题。它不生成产物，也不改变发布构建的包含范围。
+
+Node JavaScript 脚本、JSBox 应用脚本和 Venera 配置示例分别声明全局变量。TypeScript 的未声明标识符由 tsc 检查。dist、覆盖率、测试报告、外部配置样本等生成内容不参与 lint/格式检查。
+
+动态 Node 模块解析、可信配置执行和 JSBox 原生 UI 延迟加载使用逐行例外，并在注释中写明原因。新增例外也应限制到具体语句；未使用的 eslint-disable 会报错。保留未使用的位置参数时可以用 `_` 前缀，不需要的参数则直接删除。
 
 ## 真实配置兼容性
 
@@ -92,6 +111,8 @@ CI 不能替代 JSBox 真机验证。
 发布前依次检查：
 
 ```bash
+npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run test:examples

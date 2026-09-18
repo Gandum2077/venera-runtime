@@ -1,4 +1,5 @@
-import { httpRequest, RuntimeHttpRequest } from "./platform";
+import type { RuntimeHttpRequest } from "./platform";
+import { httpRequest } from "./platform";
 import { cookieJar } from "./cookiejar";
 import { decodeUtf8 } from "./convert";
 import type {

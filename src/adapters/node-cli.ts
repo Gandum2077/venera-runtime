@@ -4,6 +4,7 @@ export interface CliIo {
 }
 function requireNode<T>(id: string): T {
   // Runtime resolution keeps native dependencies out of non-Node bundles.
+  // eslint-disable-next-line no-eval -- Keep Node module resolution invisible to JSBox bundlers.
   const runtimeRequire = eval("require") as (moduleId: string) => T;
   return runtimeRequire(id);
 }

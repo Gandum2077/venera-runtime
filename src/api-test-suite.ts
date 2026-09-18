@@ -132,10 +132,7 @@ function createTestCases(options: RuntimeTestOptions): RuntimeTestCase[] {
           "File listing does not contain the binary file",
         );
         assert(
-          runtimeFiles.move(
-            `${fileRoot}/bytes.bin`,
-            `${fileRoot}/moved.bin`,
-          ),
+          runtimeFiles.move(`${fileRoot}/bytes.bin`, `${fileRoot}/moved.bin`),
           "Failed to move binary file",
         );
         assert(

@@ -263,6 +263,7 @@ export function createVeneraRuntime() {
     ...args: unknown[]
   ): Promise<T> {
     // 某些配置会把一段函数源码字符串交给运行时执行，这里做最简兼容。
+    // eslint-disable-next-line no-new-func -- compute implements Venera trusted function-source execution.
     const runner = new Function(`return (${func});`)() as (
       ...input: unknown[]
     ) => T;

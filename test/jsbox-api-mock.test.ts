@@ -22,6 +22,7 @@ describe("JSBox platform adapter", () => {
     let receivedOptions: Record<string, unknown> | undefined;
     const mockHttp = {
       async request(this: unknown, options: Record<string, unknown>) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- Verify the native method receives its owning $http object.
         receiver = this;
         receivedOptions = options;
         return {
@@ -41,7 +42,8 @@ describe("JSBox platform adapter", () => {
     });
     vi.resetModules();
 
-    const { httpRequest, getRuntimeEnvironment } = await import("../src/platform");
+    const { httpRequest, getRuntimeEnvironment } =
+      await import("../src/platform");
     const response = await httpRequest({
       method: "GET",
       url: "https://example.com/status/204",

@@ -1,5 +1,6 @@
-import { CookieRecord } from "./venera-types";
-import { DBManager, dbManager } from "./database";
+import type { CookieRecord } from "./venera-types";
+import type { DBManager } from "./database";
+import { dbManager } from "./database";
 import UrlParse from "url-parse";
 
 /**

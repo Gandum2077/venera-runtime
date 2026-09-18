@@ -1,9 +1,9 @@
-import {
+import type {
   DatabasePrimitive,
   DatabaseStatement,
-  openDatabase,
   RuntimeDatabase,
 } from "./platform";
+import { openDatabase } from "./platform";
 import { VENERA_CONFIG_DATABASE_PATH } from "./constants";
 
 const CREATE_TABLE_STATEMENTS = [

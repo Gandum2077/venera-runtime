@@ -1,4 +1,4 @@
-import { AppRuntimeInfo } from "./venera-types";
+import type { AppRuntimeInfo } from "./venera-types";
 import { VENERA_APP_VERSION, VENERA_RUNTIME_PLATFORM } from "./constants";
 import { configManager } from "./config";
 

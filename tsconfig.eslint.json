@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "examples/**/*.ts",
+    "examples/**/*.mts",
+    "*.config.mts",
+    "node_modules/jsbox-types/index.d.ts"
+  ]
+}

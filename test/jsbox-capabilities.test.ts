@@ -81,6 +81,16 @@ describe("database capability contract", () => {
 });
 
 describe("JSBox UI contract", () => {
+  it("rejects when the native alert cannot be presented", async () => {
+    vi.stubGlobal("$alertActionType", { default: 0, destructive: 1 });
+    vi.stubGlobal("$ui", {
+      alert: () => Promise.reject(new Error("presentation failed")),
+    });
+    await expect(
+      createJsBoxAdapter().ui.showDialog("Test", "Content", []),
+    ).rejects.toThrow("presentation failed");
+  });
+
   it("rejects the dialog promise when an action callback fails", async () => {
     vi.stubGlobal("$alertActionType", { default: 0, destructive: 1 });
     vi.stubGlobal("$ui", {

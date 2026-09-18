@@ -19,11 +19,13 @@ export type { CliIo } from "./node-cli";
 export function createNodeAdapter(): RuntimeAdapter {
   function requireNode<T>(id: string): T {
     // Runtime resolution keeps native dependencies out of non-Node bundles.
+    // eslint-disable-next-line no-eval -- Keep Node module resolution invisible to JSBox bundlers.
     const runtimeRequire = eval("require") as (moduleId: string) => T;
     return runtimeRequire(id);
   }
 
   async function importNode<T>(id: string): Promise<T> {
+    // eslint-disable-next-line no-new-func -- Load ESM-only Node dependencies without bundling them for JSBox.
     const runtimeImport = new Function(
       "moduleId",
       "return import(moduleId)",

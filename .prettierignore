@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.fixtures/
+test-results/
+runtime-test-output/
+app/main.js
+package-lock.json
+*.box
+*.tgz
