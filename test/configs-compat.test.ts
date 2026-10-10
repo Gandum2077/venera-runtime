@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createVeneraRuntime } from "../src/runtime";
 import { loadVeneraConfigBySourceCode } from "../src/load-config";
 
@@ -50,5 +50,91 @@ describe("real venera-configs compatibility", () => {
     }
     expect(failures, failures.join("\n")).toEqual([]);
     expect(index.length).toBeGreaterThan(20);
+  });
+});
+
+describe("real E-Hentai archive configuration", () => {
+  it("resolves original ZIP URLs and H@H remote downloads without live requests", async () => {
+    const { getArchiveDownloader } = await import("../src/archive");
+    const { Network } = await import("../src/network");
+    const source = loadVeneraConfigBySourceCode(
+      readFileSync(resolve(configsDirectory, "ehentai.js"), "utf8"),
+      createVeneraRuntime(),
+      false,
+    );
+    const archive = getArchiveDownloader(source)!;
+    const cid = "https://e-hentai.org/g/123/token/";
+    const post = vi.spyOn(Network, "post").mockResolvedValue({
+      status: 200,
+      headers: {},
+      body: '<a href="https://download.test/start">download</a>',
+    });
+    const get = vi.spyOn(Network, "get").mockResolvedValue({
+      status: 200,
+      headers: {},
+      body: '<a href="/comic.zip">download</a>',
+    });
+    const head = vi
+      .spyOn(Network, "sendRequest")
+      .mockResolvedValue({ status: 200, headers: {}, body: "" });
+    try {
+      Object.defineProperty(source, "baseUrl", {
+        value: "https://exhentai.org",
+      });
+      vi.spyOn(source.comic!, "loadInfo").mockResolvedValue({
+        title: "Comic",
+        cover: "",
+      });
+      get.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        body: `
+        <table><tr><td><a onclick="do_hathdl('1280')">1280x</a><p>1280x</p><p>10 MB</p><p>Free</p></td></tr></table>
+        <div id="db"><p>Header</p><div>
+          <section><div><strong>20 GP</strong></div><p><strong>30 MB</strong></p></section>
+          <section><div><strong>Free</strong></div><p><strong>10 MB</strong></p></section>
+        </div></div>`,
+      });
+      expect(await archive.getArchives(cid)).toEqual([
+        {
+          id: "h@h_1280",
+          title: "H@H 1280x",
+          description: "Size: 10 MB, Cost: Free",
+        },
+        { id: "0", title: "Original", description: "Cost: 20 GP, Size: 30 MB" },
+        { id: "1", title: "Resample", description: "Cost: Free, Size: 10 MB" },
+      ]);
+      expect(await archive.getDownloadUrl(cid, "0")).toBe(
+        "https://download.test/comic.zip",
+      );
+      expect(post.mock.calls[0][2]).toBe(
+        "dltype=org&dlcheck=Download+Original+Archive",
+      );
+      expect(get).toHaveBeenCalledWith("https://download.test/start", {
+        http_client: "dart:io",
+      });
+      expect(head.mock.calls[0][0]).toBe("HEAD");
+      head.mockResolvedValueOnce({ status: 410, headers: {}, body: "" });
+      await expect(archive.getDownloadUrl(cid, "1")).rejects.toBe(
+        "IP quota exhausted.",
+      );
+      post.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        body: "<p>Command sent</p>",
+      });
+      expect(await archive.getDownloadUrl(cid, "h@h_1280")).toBe("");
+      expect(post.mock.calls.at(-1)?.[2]).toBe("hathdl_xres=1280");
+      post.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        body: '<p class="br">H@H client required</p>',
+      });
+      await expect(archive.getDownloadUrl(cid, "h@h_org")).rejects.toBe(
+        "You need an H@H client associated with your account to use this feature",
+      );
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

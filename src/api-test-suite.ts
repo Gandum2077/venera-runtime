@@ -1,3 +1,7 @@
+import { zipSync } from "fflate";
+import { getArchiveDownloader, downloadComicArchive } from "./archive";
+import { loadVeneraConfig } from "./package-api";
+import { Network } from "./network";
 import { createUuid } from "./uuid";
 import {
   decodeText,
@@ -66,6 +70,64 @@ function createTestCases(options: RuntimeTestOptions): RuntimeTestCase[] {
   const fileRoot = "runtime-test-output/api-contract";
   const databasePath = `${fileRoot}/contract.db`;
   return [
+    {
+      name: "comic.archive config methods and ZIP extraction",
+      async run() {
+        const source = loadVeneraConfig(
+          `class ArchiveTestSource extends ComicSource {
+          name = "Archive test"; key = "archive_report_test"; version = "1.0.0";
+          comic = { archive: {
+            label: "Original",
+            async getArchives(cid) { return [{id: "0", title: this.label, description: cid}]; },
+            async getDownloadUrl(cid, aid) { return aid === "remote" ? "" : "https://archive.test/comic.zip"; }
+          }};
+        }`,
+          { runInit: false },
+        );
+        const archive = getArchiveDownloader(source)!;
+        const archives = await archive.getArchives("comic");
+        assert(
+          archives[0]?.title === "Original" &&
+            archives[0]?.description === "comic",
+          "Archive result or method receiver mismatch",
+        );
+        const root = "runtime-test-output/archive-contract";
+        const originalFetch = Network.fetchBytes;
+        let requests = 0;
+        try {
+          Network.fetchBytes = async () => {
+            requests += 1;
+            const zip = zipSync({ "pages/001.jpg": Uint8Array.of(0, 255, 1) });
+            return { status: 200, headers: {}, body: zip.slice().buffer };
+          };
+          runtimeFiles.delete(root);
+          const remote = await downloadComicArchive(source, "comic", "remote", {
+            directory: root,
+          });
+          assert(
+            remote.status === "remote" &&
+              requests === 0 &&
+              !runtimeFiles.exists(root),
+            "Remote archive unexpectedly downloaded",
+          );
+          const downloaded = await downloadComicArchive(source, "comic", "0", {
+            directory: root,
+          });
+          assert(
+            downloaded.status === "downloaded",
+            "Archive was not downloaded",
+          );
+          assert(
+            bytesToHex(runtimeFiles.readBytes(`${root}/pages/001.jpg`)!) ===
+              "00ff01",
+            "Extracted archive bytes differ",
+          );
+        } finally {
+          Network.fetchBytes = originalFetch;
+          runtimeFiles.delete(root);
+        }
+      },
+    },
     {
       name: "metadata matches Venera 1.6.3 on iOS",
       run() {

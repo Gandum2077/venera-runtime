@@ -162,3 +162,41 @@ inputBytes 为调用方读取的图片字节。图片和脚本不合法时 Promi
 配置脚本中的 console/log 使用这个 logger。后台 init 错误则直接输出宿主 console.error，不依赖日志开关。
 
 `APP.version` 为 `1.6.3`，`APP.platform` 为 `ios`；`APP.locale` 来自共享配置数据。真实宿主名称通过 `venera-runtime/platform` 的 `getRuntimeEnvironment()` 查询，调用时会触发适配器选择。
+
+## 归档下载
+
+配置的可选 `comic.archive` 包含 `getArchives(cid)` 和 `getDownloadUrl(cid, aid)`。
+`getArchiveDownloader(source)` 返回保留配置方法 this 的封装，无此能力时返回 null；
+它检查归档列表的 `id/title/description` 字符串字段，以及下载链接的字符串类型。
+配置抛出的错误原样使 Promise reject。
+
+```ts
+import { getArchiveDownloader, downloadComicArchive } from "venera-runtime";
+
+const archive = getArchiveDownloader(source);
+if (archive) {
+  const choices = await archive.getArchives(comicId);
+  // 由应用展示 choices 的 title、description，让用户选择 id。
+  const selected = choices[0];
+  if (selected) {
+    const result = await downloadComicArchive(source, comicId, selected.id, {
+      directory: "downloads/comic-123",
+      maxExtractedBytes: 512 * 1024 * 1024,
+    });
+    // result.status 为 downloaded 时包含 directory、files、url。
+    // remote 表示源返回空字符串，例如已经向 H@H 客户端发送下载指令。
+  }
+}
+```
+
+`downloadComicArchive` 调用链接方法一次，非空链接通过运行时 Network 下载 ZIP，
+共享 Cookie 处理，在临时目录解压并通过文件适配器 move 到目标目录。
+空字符串返回 `{ status: "remote" }`，不会请求下载文件或创建目录。
+目标目录必须尚不存在，父目录需事先创建；失败会清理临时目录，不覆盖已有目标。
+只接受 HTTP/HTTPS 和 ZIP，拒绝路径穿越、绝对路径、反斜杠及超过解压大小限制的归档。
+Node.js 和 JSBox 共用纯 JavaScript 解压实现，无需新增宿主能力。
+
+与原版一样，这个入口用于无章节漫画；漫画选择界面、普通图片下载、本地书库登记由消费应用负责。
+当前实现将压缩文件和解压内容保存在内存中，默认解压上限 512 MiB，可通过
+`maxExtractedBytes` 降低限制。尚不提供流式进度、暂停恢复和持久化下载队列。
+不要自动重试 `getDownloadUrl`，因为它可能触发收费归档生成或远程 H@H 下载。

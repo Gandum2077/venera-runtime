@@ -344,7 +344,7 @@ export interface LinkHandler {
   linkToId(url: string): string | null;
 }
 
-/** 某些源支持打包下载归档。当前项目暂未完整实现，但保留类型映射。 */
+/** 某些源支持打包下载归档；空下载链接表示已触发远程下载。 */
 export interface ArchiveDownloader {
   getArchives(cid: string): Promise<ArchiveInfo[]>;
   getDownloadUrl(cid: string, aid: string): Promise<string>;

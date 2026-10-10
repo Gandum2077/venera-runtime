@@ -92,3 +92,6 @@ export type {
   RuntimeConsoleApi,
   RuntimeGlobals,
 } from "./venera-types";
+
+export { getArchiveDownloader, downloadComicArchive } from "./archive";
+export type { ArchiveDownloadOptions, ArchiveDownloadResult } from "./archive";
