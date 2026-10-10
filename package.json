@@ -91,7 +91,7 @@
     "fflate": "^0.8.3",
     "iconv-lite": "^0.7.3",
     "jsbox-cview": "^1.6.9",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "url-parse": "^1.5.10"
   },
   "devDependencies": {
