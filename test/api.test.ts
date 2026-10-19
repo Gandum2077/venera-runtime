@@ -37,10 +37,19 @@ beforeAll(async () => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     request.on("end", () => {
+      if (
+        request.url === "/json-only" &&
+        request.headers["content-type"] !== "application/json"
+      ) {
+        response.writeHead(415);
+        response.end("Expected application/json");
+        return;
+      }
       response.setHeader("content-type", "application/json");
       response.end(
         JSON.stringify({
           method: request.method,
+          contentType: request.headers["content-type"] ?? null,
           body: Buffer.concat(chunks).toString("utf8"),
         }),
       );
@@ -81,6 +90,7 @@ describe("shared API contract", () => {
     });
     expect(JSON.parse(decodeText(json.body, "utf8"))).toEqual({
       method: "POST",
+      contentType: "application/json",
       body: '{"value":"漫画"}',
     });
 
@@ -92,9 +102,62 @@ describe("shared API contract", () => {
     });
     expect(JSON.parse(decodeText(form.body, "utf8"))).toEqual({
       method: "POST",
+      contentType: "application/x-www-form-urlencoded",
       body: "value=%E6%BC%AB%E7%94%BB&page=2",
     });
   });
+
+  it("posts objects to JSON-only APIs without changing caller headers", async () => {
+    const headers = Object.freeze({ Accept: "application/json" });
+    const response = await Network.post(`${baseUrl}/json-only`, headers, {
+      username: "test-user",
+      password: "test-password",
+    });
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      method: "POST",
+      contentType: "application/json",
+      body: '{"username":"test-user","password":"test-password"}',
+    });
+    expect(headers).toEqual({ Accept: "application/json" });
+  });
+
+  it.each(["Content-Type", "content-type", "cOnTeNt-TyPe"])(
+    "preserves an explicit %s when serializing objects",
+    async (headerName) => {
+      const response = await Network.put(
+        `${baseUrl}/echo`,
+        { [headerName]: "application/vnd.test+json; charset=utf-8" },
+        { value: 1 },
+      );
+      expect(JSON.parse(response.body)).toEqual({
+        method: "PUT",
+        contentType: "application/vnd.test+json; charset=utf-8",
+        body: '{"value":1}',
+      });
+    },
+  );
+
+  it.each([
+    { body: undefined, expectedBody: "" },
+    { body: null, expectedBody: "" },
+    { body: new Uint8Array([65, 66]).buffer, expectedBody: "AB" },
+    { body: new Uint8Array([65, 66, 67]).subarray(1), expectedBody: "BC" },
+  ])(
+    "sends empty and binary bodies without a JSON content type: $expectedBody",
+    async ({ body, expectedBody }) => {
+      const response = await httpRequest({
+        method: "POST",
+        url: `${baseUrl}/echo`,
+        body,
+      });
+      expect(JSON.parse(decodeText(response.body, "utf8"))).toEqual({
+        method: "POST",
+        contentType: null,
+        body: expectedBody,
+      });
+    },
+  );
 
   it("implements Venera Network, fetch and Cookie behavior", async () => {
     const setCookieResponse = await Network.get(`${baseUrl}/set-cookie`);
@@ -111,6 +174,7 @@ describe("shared API contract", () => {
     expect(fetchResponse.ok).toBe(true);
     expect(await fetchResponse.json()).toEqual({
       method: "POST",
+      contentType: "application/json",
       body: '{"value":1}',
     });
     await expect(

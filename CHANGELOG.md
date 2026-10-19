@@ -1,5 +1,9 @@
 # 变更记录
 
+## 未发布
+
+- 修复 Node 对象请求正文缺少默认 `Content-Type: application/json`，导致 Kavita 等 JSON API 返回 HTTP 415 的问题；保留显式请求头及表单、二进制正文处理。
+
 ## 0.1.0（待发布）
 
 首个 npm 版本；以下为发布候选内容，正式发布后记录发布日期。

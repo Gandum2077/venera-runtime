@@ -244,14 +244,17 @@ export function createNodeAdapter(): RuntimeAdapter {
     if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
       return exactArrayBuffer(body);
     }
-    const contentType =
-      getHeader(headers, "content-type")?.toLowerCase() ?? "application/json";
-    if (contentType.includes("application/x-www-form-urlencoded")) {
+    const contentType = getHeader(headers, "content-type");
+    if (
+      contentType?.toLowerCase().includes("application/x-www-form-urlencoded")
+    ) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(body))
         appendSearchParam(params, key, value);
       return params;
     }
+    // Match Venera/JSBox defaults when serializing an object as JSON.
+    if (contentType === undefined) headers["Content-Type"] = "application/json";
     return JSON.stringify(body);
   }
 

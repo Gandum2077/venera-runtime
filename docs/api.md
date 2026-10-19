@@ -121,6 +121,8 @@ db.update("INSERT OR REPLACE INTO app_favorites VALUES (?, ?)", [
 
 响应包含 status、headers 和 body。传输失败 reject；4xx/5xx 仍返回响应，由调用方检查 status。超时通过 `extra.timeout` 指定毫秒数。
 
+Node 发送对象正文时默认序列化为 JSON，并在未指定时补充 `Content-Type: application/json`。显式指定的 Content-Type 不区分字段名大小写；`application/x-www-form-urlencoded` 使用表单编码，其他类型保留原值。请求头的默认值不会写回调用方传入的对象。
+
 Network 自动读取共享 Cookie，并保存响应的 Set-Cookie。`Network.setCookies/getCookies/deleteCookies` 可管理 URL 对应的 Cookie；直接导出的 `cookieJar` 还提供 `getCookieHeader(url)` 和 `applySetCookieHeader(url, header)`。`new BrowserCookieJar(database?)` 可使用独立 DBManager，但不会替换 Network 使用的 cookieJar。
 
 `veneraFetch(url, options?)` 是配置脚本 fetch 的公开实现。返回 ok、status、statusText、普通对象 headers，以及异步 text/json/arrayBuffer 方法。虽然参数类型为 RequestInit，当前只读取 method、headers、body；signal、credentials、redirect 等不会按标准 Fetch 的方式处理，也不提供流式 Response。
