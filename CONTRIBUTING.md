@@ -80,7 +80,7 @@ Node JavaScript 脚本、JSBox 应用脚本和 Venera 配置示例分别声明�
 VENERA_CONFIGS_DIR=/absolute/path/to/venera-configs npm run test:compat
 ```
 
-未设置时默认查找仓库旁的 `../Github/venera-configs`。缺少 index.json 时测试会失败，不会跳过。
+显式设置的 `VENERA_CONFIGS_DIR` 优先；路径无效时测试会失败，不会回退到其他目录。未设置时依次查找 `../venera-configs`、`../Github/venera-configs`、`.fixtures/venera-configs`，使用第一个包含 index.json 的目录。所有目录均缺少 index.json 时测试会失败，不会跳过。
 CI 使用固定配置提交以保证可复现；更新该提交时需要重新验证。此测试不会覆盖所有网站的登录、搜索、图片下载等功能。
 
 ## JSBox 真机与报告比较
@@ -127,13 +127,13 @@ npm pack --dry-run
 
 JSBox 构建通过标准参数传递入口，例如 `npm run build -- --entry ./dist/jsbox-test-runner.js`。默认库入口保持为 dist/index.js；日常真机测试使用 `npm run build:jsbox-test`。构建在临时目录中生成全新的归档，成功后替换目标 .box，失败时保留上一次成功产物。
 
-首版为 **0.1.0**。发布顺序：
+以 package.json 中的版本为本次目标版本。发布顺序：
 
 1. 确认 package.json、package-lock.json 和 app/config.json 的版本一致，更新 CHANGELOG 发布日期及 README/Node 指南的安装状态。
 2. 运行 check:release，检查 tarball 文件清单；把本次生成的 .box 在真机跑完，确认 failed 和 skipped 均为 0，归档报告。
 3. 提交变更并等待该提交的 GitHub CI 全部通过。之前提交的绿色 CI 不覆盖新改动。
 4. 在同一提交的干净工作树中运行 `npm publish --access public`（需要 npm 发布权限；此命令会实际上传）。
-5. 确认 registry 中的版本是 0.1.0，在空目录执行 `npm install venera-runtime@0.1.0` 并运行随包提供的 Node 示例。
-6. 为发布提交创建并推送 `v0.1.0` Git tag。
+5. 确认 registry 中已存在本次目标版本，在空目录执行 `npm install venera-runtime@<目标版本>` 并运行随包提供的 Node 示例。
+6. 为发布提交创建并推送 `v<目标版本>` Git tag。
 
 本地 npm pack、check:release 和 test:package 都不会发布到 registry。实际发布是单独的维护者操作。

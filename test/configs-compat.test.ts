@@ -10,9 +10,16 @@ interface ConfigIndexEntry {
   version: string;
 }
 
-const configsDirectory =
-  process.env.VENERA_CONFIGS_DIR ||
-  resolve(process.cwd(), "../Github/venera-configs");
+const defaultConfigsDirectories = [
+  "../venera-configs",
+  "../Github/venera-configs",
+  ".fixtures/venera-configs",
+].map((directory) => resolve(process.cwd(), directory));
+const configsDirectory = process.env.VENERA_CONFIGS_DIR
+  ? resolve(process.env.VENERA_CONFIGS_DIR)
+  : (defaultConfigsDirectories.find((directory) =>
+      existsSync(resolve(directory, "index.json")),
+    ) ?? defaultConfigsDirectories[0]);
 const indexPath = resolve(configsDirectory, "index.json");
 
 describe("real venera-configs compatibility", () => {

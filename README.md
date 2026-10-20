@@ -12,7 +12,13 @@
 
 Node.js 版本要求：`^20.18.1 || ^22.0.0 || ^24.0.0 || ^26.0.0`。JSBox 接入见 [JSBox 指南](docs/jsbox.md)。
 
-项目目前处于 npm 发布准备阶段，可先从本地仓库生成安装包：
+在调用方项目中安装：
+
+```bash
+npm install venera-runtime
+```
+
+也可以从本地仓库生成安装包：
 
 ```bash
 # 在本仓库中
@@ -20,10 +26,10 @@ npm ci
 npm pack
 
 # 在调用方项目中，使用 npm pack 输出的实际文件名
-npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.0.tgz
+npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.2.tgz
 ```
 
-正式发布后的安装命令为 `npm install venera-runtime`。Node 依赖包含 `better-sqlite3`、`sharp` 等原生模块，应在目标机器上安装。更多方式见 [Node.js 指南](docs/node.md)。
+Node 依赖包含 `better-sqlite3`、`sharp` 等原生模块，应在目标机器上安装。更多方式见 [Node.js 指南](docs/node.md)。
 
 ## 快速上手
 
@@ -78,7 +84,7 @@ import { loadVeneraConfig, type VeneraConfigSource } from "venera-runtime";
 | [JSBox](docs/jsbox.md)                  | 依赖接入、构建、原生数据转换和真机验证                 |
 | [环境适配器](docs/platform-adapters.md) | 必需能力、检测与注册、生命周期和接口迁移               |
 | [贡献指南](CONTRIBUTING.md)             | 开发、测试、跨平台报告、发布验证                       |
-| [变更记录](CHANGELOG.md)                | 尚未发布的变更与破坏性调整                             |
+| [变更记录](CHANGELOG.md)                | 版本变更与破坏性调整                                   |
 
 ## 支持边界
 

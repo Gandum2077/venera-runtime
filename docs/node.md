@@ -7,7 +7,13 @@
 支持范围以 package.json 为准：`^20.18.1 || ^22.0.0 || ^24.0.0 || ^26.0.0`。
 本包发布 CommonJS JavaScript 和 TypeScript 声明，支持 require 和原生 ESM 具名导入。
 
-发布前先在运行时仓库生成 tarball：
+在调用方项目中安装：
+
+```bash
+npm install venera-runtime
+```
+
+也可以先在运行时仓库生成 tarball：
 
 ```bash
 npm ci
@@ -17,10 +23,10 @@ npm pack
 在调用方安装生成的实际文件名：
 
 ```bash
-npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.0.tgz
+npm install /absolute/path/to/venera-runtime/venera-runtime-0.1.2.tgz
 ```
 
-源码变化后重新 pack 和安装，才能得到新的快照。正式发布后可使用 `npm install venera-runtime`。
+源码变化后重新 pack 和安装，才能得到新的快照。
 
 开发时也可安装本地目录：
 
